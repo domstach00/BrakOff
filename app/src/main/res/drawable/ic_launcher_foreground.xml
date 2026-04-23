@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Barcode icon representation -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M25,30h5v48h-5zM35,30h10v48h-10zM50,30h5v48h-5zM60,30h15v48h-15zM80,30h3v48h-3z" />
+    <!-- Scanning line -->
+    <path
+        android:fillColor="#FF0000"
+        android:pathData="M20,52h68v4h-68z" />
+</vector>
