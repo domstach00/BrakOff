@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.Dispatchers
 import kotlin.time.Duration.Companion.seconds
 
 class MainViewModel(
@@ -91,6 +92,13 @@ class MainViewModel(
 
     private val _isCheckingConnection = MutableStateFlow(false)
     val isCheckingConnection: StateFlow<Boolean> = _isCheckingConnection.asStateFlow()
+
+    private val _isScanningNetwork = MutableStateFlow(false)
+    val isScanningNetwork: StateFlow<Boolean> = _isScanningNetwork.asStateFlow()
+
+    private val _autoScanEnabled = preferencesManager.autoScanEnabled
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+    val autoScanEnabled: StateFlow<Boolean> = _autoScanEnabled
 
     private val _connectionError = MutableStateFlow<String?>(null)
     val connectionError: StateFlow<String?> = _connectionError.asStateFlow()
@@ -280,6 +288,74 @@ class MainViewModel(
         }
     }
 
+    fun setAutoScanEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            preferencesManager.setAutoScanEnabled(enabled)
+        }
+    }
+
+    fun startNetworkScan() {
+        if (_isScanningNetwork.value) return
+        
+        viewModelScope.launch(Dispatchers.IO) {
+            _isScanningNetwork.value = true
+            _connectionError.value = "Skanowanie sieci..."
+            
+            val localIp = com.wodrol.brakoff.util.NetworkUtils.getLocalIpAddress()
+            if (localIp == null) {
+                _connectionError.value = "Brak połączenia z WiFi"
+                _isScanningNetwork.value = false
+                return@launch
+            }
+
+            val subnet = com.wodrol.brakoff.util.NetworkUtils.getSubnet(localIp)
+            if (subnet == null) {
+                _connectionError.value = "Nie można określić podsieci"
+                _isScanningNetwork.value = false
+                return@launch
+            }
+
+            val client = okhttp3.OkHttpClient.Builder()
+                .connectTimeout(200, java.util.concurrent.TimeUnit.MILLISECONDS)
+                .readTimeout(200, java.util.concurrent.TimeUnit.MILLISECONDS)
+                .build()
+
+            // Skanujemy zakres 1-254
+            for (i in 1..254) {
+                if (!_isScanningNetwork.value) break
+                val testIp = "$subnet$i"
+                if (testIp == localIp) continue
+
+                val url = "http://$testIp:8080/api/health"
+                val request = okhttp3.Request.Builder().url(url).build()
+                
+                try {
+                    client.newCall(request).execute().use { response ->
+                        if (response.isSuccessful) {
+                            val foundUrl = "http://$testIp:8080"
+                            saveServerUrl(foundUrl)
+                            _isScanningNetwork.value = false
+                            _connectionError.value = null
+                            checkServerHealth()
+                            return@launch
+                        }
+                    }
+                } catch (e: Exception) {
+                    // Ignorujemy błędy połączenia podczas skanowania
+                }
+            }
+            
+            _isScanningNetwork.value = false
+            if (serverUrl.value.isEmpty()) {
+                _connectionError.value = "Nie znaleziono serwera"
+            }
+        }
+    }
+
+    fun stopNetworkScan() {
+        _isScanningNetwork.value = false
+    }
+
     fun dismissArchive(deliveryId: String) {
         viewModelScope.launch {
             preferencesManager.saveDismissedArchiveId(deliveryId)
@@ -294,6 +370,15 @@ class MainViewModel(
 
     fun checkServerHealth() {
         viewModelScope.launch {
+            if (serverUrl.value.isEmpty()) {
+                if (autoScanEnabled.value) {
+                    startNetworkScan()
+                } else {
+                    _connectionError.value = "Brak skonfigurowanego adresu serwera"
+                }
+                return@launch
+            }
+
             _isCheckingConnection.value = true
             _connectionError.value = null
             val (online, error) = repository.checkHealth()

@@ -25,6 +25,8 @@ fun SettingsScreen(viewModel: MainViewModel, onBack: () -> Unit) {
     val connectionError by viewModel.connectionError.collectAsState()
     val fetchResult by viewModel.fetchResult.collectAsState()
     val scanButtonLeft by viewModel.scanButtonLeft.collectAsState()
+    val autoScanEnabled by viewModel.autoScanEnabled.collectAsState()
+    val isScanningNetwork by viewModel.isScanningNetwork.collectAsState()
 
     var urlInput by remember { mutableStateOf(serverUrl) }
     var nameInput by remember { mutableStateOf(deviceName) }
@@ -165,6 +167,18 @@ fun SettingsScreen(viewModel: MainViewModel, onBack: () -> Unit) {
                 )
             }
 
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text("Automatyczne szukanie serwera")
+                Switch(
+                    checked = autoScanEnabled,
+                    onCheckedChange = { viewModel.setAutoScanEnabled(it) }
+                )
+            }
+
             Spacer(modifier = Modifier.height(24.dp))
             
             Card(
@@ -234,18 +248,24 @@ fun SettingsScreen(viewModel: MainViewModel, onBack: () -> Unit) {
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Button(
-                            onClick = { viewModel.checkServerHealth() },
-                            enabled = !isChecking,
+                            onClick = { 
+                                if (serverUrl.isEmpty()) {
+                                    viewModel.startNetworkScan()
+                                } else {
+                                    viewModel.checkServerHealth()
+                                }
+                            },
+                            enabled = !isChecking && !isScanningNetwork,
                             modifier = Modifier.weight(1f)
                         ) {
-                            if (isChecking) {
+                            if (isChecking || isScanningNetwork) {
                                 CircularProgressIndicator(
                                     modifier = Modifier.size(20.dp),
                                     strokeWidth = 2.dp,
                                     color = MaterialTheme.colorScheme.onPrimary
                                 )
                             } else {
-                                Text("Testuj połączenie")
+                                Text(if (serverUrl.isEmpty()) "Szukaj serwera" else "Testuj połączenie")
                             }
                         }
 

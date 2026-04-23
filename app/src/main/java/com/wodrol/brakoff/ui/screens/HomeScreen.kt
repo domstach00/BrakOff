@@ -40,6 +40,9 @@ fun HomeScreen(
     val dismissedArchiveId by viewModel.dismissedArchiveId.collectAsState()
     val scanButtonLeft by viewModel.scanButtonLeft.collectAsState()
     
+    val isScanningNetwork by viewModel.isScanningNetwork.collectAsState()
+    val connectionError by viewModel.connectionError.collectAsState()
+    
     val snackbarHostState = remember { SnackbarHostState() }
 
     LaunchedEffect(fetchResult) {
@@ -143,8 +146,13 @@ fun HomeScreen(
                 .fillMaxSize()
                 .background(MaterialTheme.colorScheme.background)
         ) {
-            if (isStatusVisible) {
-                ServerStatusBar(isOnline = serverOnline)
+            if (isStatusVisible || isScanningNetwork) {
+                ServerStatusBar(
+                    isOnline = serverOnline, 
+                    isScanning = isScanningNetwork,
+                    errorText = connectionError,
+                    onStopScan = { viewModel.stopNetworkScan() }
+                )
             }
 
             // Search and Verification Row
@@ -304,21 +312,31 @@ fun SyncStatusBadge(status: SyncStatus) {
 }
 
 @Composable
-fun ServerStatusBar(isOnline: Boolean?) {
-    val backgroundColor = when (isOnline) {
-        true -> SuccessGreen
-        false -> ErrorRed
-        null -> Color.Gray
+fun ServerStatusBar(
+    isOnline: Boolean?,
+    isScanning: Boolean = false,
+    errorText: String? = null,
+    onStopScan: () -> Unit = {}
+) {
+    val backgroundColor = when {
+        isScanning -> MaterialTheme.colorScheme.tertiary
+        isOnline == true -> SuccessGreen
+        isOnline == false -> ErrorRed
+        else -> Color.Gray
     }
-    val statusText = when (isOnline) {
-        true -> "Połączono z PC"
-        false -> "Brak połączenia z PC"
-        null -> "Sprawdzanie połączenia..."
+    
+    val statusText = when {
+        isScanning -> errorText ?: "Skanowanie sieci..."
+        isOnline == true -> "Połączono z PC"
+        isOnline == false -> errorText ?: "Brak połączenia z PC"
+        else -> "Sprawdzanie połączenia..."
     }
-    val icon = when (isOnline) {
-        true -> Icons.Default.CheckCircle
-        false -> Icons.Default.Warning
-        null -> Icons.Default.Refresh
+    
+    val icon = when {
+        isScanning -> Icons.Default.Search
+        isOnline == true -> Icons.Default.CheckCircle
+        isOnline == false -> Icons.Default.Warning
+        else -> Icons.Default.Refresh
     }
 
     Surface(
@@ -328,7 +346,7 @@ fun ServerStatusBar(isOnline: Boolean?) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 4.dp),
+                .padding(vertical = 4.dp, horizontal = 16.dp),
             horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -337,8 +355,19 @@ fun ServerStatusBar(isOnline: Boolean?) {
             Text(
                 text = statusText,
                 style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.Medium
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier.weight(1f, fill = false)
             )
+            if (isScanning) {
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    text = "PRZERWIJ",
+                    modifier = Modifier.clickable { onStopScan() },
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Bold,
+                    textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline
+                )
+            }
         }
     }
 }
