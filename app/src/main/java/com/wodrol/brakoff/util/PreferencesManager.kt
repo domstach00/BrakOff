@@ -70,7 +70,7 @@ class PreferencesManager(private val context: Context) {
 
     val deviceName: Flow<String> = context.dataStore.data
         .map { preferences ->
-            preferences[DEVICE_NAME] ?: "Android Device"
+            preferences[DEVICE_NAME] ?: ""
         }
 
     val deviceId: Flow<String> = context.dataStore.data

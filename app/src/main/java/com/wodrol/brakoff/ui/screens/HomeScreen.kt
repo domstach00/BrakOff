@@ -45,6 +45,48 @@ fun HomeScreen(
     
     val snackbarHostState = remember { SnackbarHostState() }
 
+    var showNameDialog by remember { mutableStateOf(false) }
+    var nameInput by remember { mutableStateOf("") }
+
+    LaunchedEffect(deviceName) {
+        if (deviceName.isBlank()) {
+            showNameDialog = true
+        }
+    }
+
+    if (showNameDialog) {
+        AlertDialog(
+            onDismissRequest = { /* Don't allow dismiss if blank */ },
+            title = { Text("Nazwa urządzenia") },
+            text = {
+                Column {
+                    Text("Podaj nazwę dla tego urządzenia.")
+                    Spacer(modifier = Modifier.height(16.dp))
+                    OutlinedTextField(
+                        value = nameInput,
+                        onValueChange = { nameInput = it },
+                        label = { Text("Nazwa urządzenia") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (nameInput.isNotBlank()) {
+                            viewModel.saveDeviceName(nameInput)
+                            showNameDialog = false
+                        }
+                    },
+                    enabled = nameInput.isNotBlank()
+                ) {
+                    Text("ZAPISZ")
+                }
+            }
+        )
+    }
+
     LaunchedEffect(fetchResult) {
         when (val result = fetchResult) {
             is BrakOffRepository.FetchResult.Success -> {

@@ -7,7 +7,6 @@ import com.wodrol.brakoff.data.local.entity.LocalProductState
 import com.wodrol.brakoff.data.local.entity.SyncStatus
 import com.wodrol.brakoff.data.repository.BrakOffRepository
 import com.wodrol.brakoff.util.PreferencesManager
-import com.wodrol.brakoff.data.remote.dto.DeviceStateRequest
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -73,7 +72,7 @@ class MainViewModel(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "")
 
     val deviceName: StateFlow<String> = preferencesManager.deviceName
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "Android Device")
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "")
 
     val deviceId: StateFlow<String> = preferencesManager.deviceId
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "")
