@@ -78,6 +78,9 @@ class MainViewModel(
     val deviceId: StateFlow<String> = preferencesManager.deviceId
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "")
 
+    val apiToken: StateFlow<String> = preferencesManager.apiToken
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "")
+
     val scanButtonLeft: StateFlow<Boolean> = preferencesManager.scanButtonLeft
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
@@ -279,6 +282,12 @@ class MainViewModel(
     fun saveDeviceName(name: String) {
         viewModelScope.launch {
             preferencesManager.saveDeviceName(name)
+        }
+    }
+
+    fun saveApiToken(token: String) {
+        viewModelScope.launch {
+            preferencesManager.saveApiToken(token)
         }
     }
 

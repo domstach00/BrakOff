@@ -21,6 +21,7 @@ fun SettingsScreen(viewModel: MainViewModel, onBack: () -> Unit) {
     val serverUrl by viewModel.serverUrl.collectAsState()
     val deviceName by viewModel.deviceName.collectAsState()
     val deviceId by viewModel.deviceId.collectAsState()
+    val apiToken by viewModel.apiToken.collectAsState()
     val isOnline by viewModel.isServerOnline.collectAsState()
     val connectionError by viewModel.connectionError.collectAsState()
     val fetchResult by viewModel.fetchResult.collectAsState()
@@ -30,6 +31,7 @@ fun SettingsScreen(viewModel: MainViewModel, onBack: () -> Unit) {
 
     var urlInput by remember { mutableStateOf(serverUrl) }
     var nameInput by remember { mutableStateOf(deviceName) }
+    var tokenInput by remember { mutableStateOf(apiToken) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
     
     val scope = rememberCoroutineScope()
@@ -37,6 +39,7 @@ fun SettingsScreen(viewModel: MainViewModel, onBack: () -> Unit) {
 
     LaunchedEffect(serverUrl) { urlInput = serverUrl }
     LaunchedEffect(deviceName) { nameInput = deviceName }
+    LaunchedEffect(apiToken) { tokenInput = apiToken }
 
     LaunchedEffect(fetchResult) {
         when (val result = fetchResult) {
@@ -46,6 +49,10 @@ fun SettingsScreen(viewModel: MainViewModel, onBack: () -> Unit) {
             }
             is com.wodrol.brakoff.data.repository.BrakOffRepository.FetchResult.Error -> {
                 snackbarHostState.showSnackbar("Błąd: ${result.message}")
+                viewModel.clearFetchResult()
+            }
+            is com.wodrol.brakoff.data.repository.BrakOffRepository.FetchResult.InvalidToken -> {
+                snackbarHostState.showSnackbar("Nieprawidłowy token API")
                 viewModel.clearFetchResult()
             }
             else -> {}
@@ -149,6 +156,29 @@ fun SettingsScreen(viewModel: MainViewModel, onBack: () -> Unit) {
                 Icon(Icons.Default.Check, contentDescription = null)
                 Spacer(Modifier.width(8.dp))
                 Text("Zapisz nazwę")
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            OutlinedTextField(
+                value = tokenInput,
+                onValueChange = { tokenInput = it },
+                label = { Text("API Token") },
+                modifier = Modifier.fillMaxWidth()
+            )
+            
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            Button(
+                onClick = { 
+                    viewModel.saveApiToken(tokenInput)
+                    scope.launch { snackbarHostState.showSnackbar("Token zapisany") }
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(Icons.Default.Check, contentDescription = null)
+                Spacer(Modifier.width(8.dp))
+                Text("Zapisz token")
             }
 
             Spacer(modifier = Modifier.height(24.dp))

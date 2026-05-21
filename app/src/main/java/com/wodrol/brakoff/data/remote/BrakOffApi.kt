@@ -14,9 +14,15 @@ interface BrakOffApi {
     @GET("api/delivery/current")
     suspend fun getCurrentDelivery(): Response<DeliveryResponse>
 
+    @GET("api/active-delivery")
+    suspend fun getActiveDelivery(): Response<DeliveryResponse>
+
     @POST("api/device-state")
     suspend fun updateDeviceState(@Body request: DeviceStateRequest): Response<DeviceStateResponse>
 
     @GET("api/device-state/{deviceId}")
     suspend fun getDeviceState(@Path("deviceId") deviceId: String): Response<List<DeviceStateRequest>>
+
+    @POST("api/active-delivery/scans")
+    suspend fun sendScan(@Body request: DeviceStateRequest): Response<DeviceStateResponse>
 }

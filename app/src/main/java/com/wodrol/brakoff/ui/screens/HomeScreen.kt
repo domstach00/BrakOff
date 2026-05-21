@@ -55,6 +55,10 @@ fun HomeScreen(
                 snackbarHostState.showSnackbar("Błąd: ${result.message}")
                 viewModel.clearFetchResult()
             }
+            is BrakOffRepository.FetchResult.InvalidToken -> {
+                snackbarHostState.showSnackbar("Nieprawidłowy token API")
+                viewModel.clearFetchResult()
+            }
             else -> {}
         }
     }

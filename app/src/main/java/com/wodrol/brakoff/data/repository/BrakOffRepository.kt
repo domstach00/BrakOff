@@ -32,6 +32,7 @@ class BrakOffRepository(
         data class NewDeliveryAvailable(val newDeliveryId: String, val oldDeliveryId: String) : FetchResult()
         data class DeliveryArchived(val deliveryId: String) : FetchResult()
         data class Error(val message: String) : FetchResult()
+        object InvalidToken : FetchResult()
     }
 
     val allDeliveryItems: Flow<List<DeliveryItem>> = deliveryDao.getAllItems()
@@ -153,7 +154,10 @@ class BrakOffRepository(
 
                 return FetchResult.Success
             } else {
-                if (response.code() == 404) {
+                if (response.code() == 401) {
+                    return FetchResult.InvalidToken
+                }
+                if (response.code() == 404 || response.code() == 400) {
                     val currentDeliveryId = deliveryDao.getAllItems().first().firstOrNull()?.deliveryId ?: ""
                     return FetchResult.DeliveryArchived(currentDeliveryId)
                 }
@@ -229,15 +233,20 @@ class BrakOffRepository(
                             remoteQuantityLastSeen = body.serverQuantity
                         )
                         productStateDao.insertState(syncedState)
-                    } else if (body?.reason == "STALE_REVISION") {
-                        val conflictState = state.copy(
-                            syncStatus = SyncStatus.CONFLICT,
-                            remoteQuantityLastSeen = body.serverQuantity
-                        )
-                        productStateDao.insertState(conflictState)
                     } else {
                         productStateDao.updateSyncStatus(state.barcode, SyncStatus.FAILED)
                     }
+                } else if (response.code() == 401) {
+                    productStateDao.updateSyncStatus(state.barcode, SyncStatus.FAILED)
+                } else if (response.code() == 409) {
+                    val errorBody = response.errorBody()?.string() ?: ""
+                    if (errorBody.contains("DELIVERY_MISMATCH")) {
+                        fetchCurrentDelivery(force = false)
+                    } else {
+                        // STALE_REVISION lub inny konflikt wersji
+                        pullDeviceState()
+                    }
+                    productStateDao.updateSyncStatus(state.barcode, SyncStatus.CONFLICT)
                 } else {
                     productStateDao.updateSyncStatus(state.barcode, SyncStatus.WAITING_FOR_NETWORK)
                 }

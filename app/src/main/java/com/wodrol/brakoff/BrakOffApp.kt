@@ -73,8 +73,21 @@ class BrakOffApp : Application() {
 
 class BaseUrlInterceptor(private val preferencesManager: PreferencesManager) : Interceptor {
     override fun intercept(chain: Interceptor.Chain): Response {
-        var request = chain.request()
+        val request = chain.request()
         val urlString = runBlocking { preferencesManager.serverUrl.first() }
+        val token = runBlocking { preferencesManager.apiToken.first() }
+        
+        val isHealthCheck = request.url.encodedPath.endsWith("/api/health")
+        
+        val builder = request.newBuilder()
+        
+        if (!isHealthCheck) {
+            builder.addHeader("Accept", "application/json")
+            builder.addHeader("Content-Type", "application/json")
+            if (token.isNotBlank()) {
+                builder.addHeader("Authorization", "Bearer $token")
+            }
+        }
         
         if (urlString.isNotBlank()) {
             val baseUrl = if (urlString.endsWith("/")) urlString else "$urlString/"
@@ -84,12 +97,10 @@ class BaseUrlInterceptor(private val preferencesManager: PreferencesManager) : I
                     .host(newUrl.host)
                     .port(newUrl.port)
                     .build()
-                request = request.newBuilder()
-                    .url(newFullUrl)
-                    .build()
+                builder.url(newFullUrl)
             }
         }
         
-        return chain.proceed(request)
+        return chain.proceed(builder.build())
     }
 }

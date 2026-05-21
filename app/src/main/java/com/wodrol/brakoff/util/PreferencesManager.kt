@@ -19,6 +19,7 @@ class PreferencesManager(private val context: Context) {
         private val SERVER_URL = stringPreferencesKey("server_url")
         private val DEVICE_NAME = stringPreferencesKey("device_name")
         private val DEVICE_ID = stringPreferencesKey("device_id")
+        private val API_TOKEN = stringPreferencesKey("api_token")
         private val DISMISSED_ARCHIVE_ID = stringPreferencesKey("dismissed_archive_id")
         private val SCAN_BUTTON_LEFT = booleanPreferencesKey("scan_button_left")
         private val AUTO_SCAN_ENABLED = booleanPreferencesKey("auto_scan_enabled")
@@ -59,7 +60,12 @@ class PreferencesManager(private val context: Context) {
 
     val serverUrl: Flow<String> = context.dataStore.data
         .map { preferences ->
-            preferences[SERVER_URL] ?: ""
+            preferences[SERVER_URL] ?: "https://brakoff.mpdwodrol.com"
+        }
+
+    val apiToken: Flow<String> = context.dataStore.data
+        .map { preferences ->
+            preferences[API_TOKEN] ?: ""
         }
 
     val deviceName: Flow<String> = context.dataStore.data
@@ -81,6 +87,12 @@ class PreferencesManager(private val context: Context) {
     suspend fun saveDeviceName(name: String) {
         context.dataStore.edit { preferences ->
             preferences[DEVICE_NAME] = name
+        }
+    }
+
+    suspend fun saveApiToken(token: String) {
+        context.dataStore.edit { preferences ->
+            preferences[API_TOKEN] = token
         }
     }
 
