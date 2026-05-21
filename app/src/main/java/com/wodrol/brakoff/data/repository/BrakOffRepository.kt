@@ -100,8 +100,13 @@ class BrakOffRepository(
                 val body = response.body() ?: return FetchResult.Error("Pusta odpowiedź serwera")
                 
                 if (body.deliveryId.isEmpty()) {
-                    val currentDeliveryId = deliveryDao.getAllItems().first().firstOrNull()?.deliveryId ?: ""
-                    return FetchResult.DeliveryArchived(currentDeliveryId)
+                    val currentItems = deliveryDao.getAllItems().first()
+                    val currentDeliveryId = currentItems.firstOrNull()?.deliveryId
+                    return if (currentDeliveryId.isNullOrEmpty()) {
+                        FetchResult.Success
+                    } else {
+                        FetchResult.DeliveryArchived(currentDeliveryId)
+                    }
                 }
 
                 val currentItems = deliveryDao.getAllItems().first()
@@ -158,8 +163,13 @@ class BrakOffRepository(
                     return FetchResult.InvalidToken
                 }
                 if (response.code() == 404 || response.code() == 400) {
-                    val currentDeliveryId = deliveryDao.getAllItems().first().firstOrNull()?.deliveryId ?: ""
-                    return FetchResult.DeliveryArchived(currentDeliveryId)
+                    val currentItems = deliveryDao.getAllItems().first()
+                    val currentDeliveryId = currentItems.firstOrNull()?.deliveryId
+                    return if (currentDeliveryId.isNullOrEmpty()) {
+                        FetchResult.Success
+                    } else {
+                        FetchResult.DeliveryArchived(currentDeliveryId)
+                    }
                 }
                 return FetchResult.Error("Błąd serwera: ${response.code()}")
             }
