@@ -7,12 +7,16 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import com.wodrol.brakoff.ui.viewmodel.MainViewModel
 import kotlinx.coroutines.launch
@@ -34,6 +38,7 @@ fun SettingsScreen(viewModel: MainViewModel, onBack: () -> Unit) {
     var urlInput by remember { mutableStateOf(serverUrl) }
     var nameInput by remember { mutableStateOf(deviceName) }
     var tokenInput by remember { mutableStateOf(apiToken) }
+    var tokenVisible by remember { mutableStateOf(false) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
     
     val scope = rememberCoroutineScope()
@@ -174,9 +179,21 @@ fun SettingsScreen(viewModel: MainViewModel, onBack: () -> Unit) {
 
                 OutlinedTextField(
                     value = tokenInput,
-                    onValueChange = { tokenInput = it },
+                    onValueChange = { 
+                        tokenInput = it
+                        tokenVisible = true // Show while typing
+                    },
                     label = { Text("API Token") },
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    visualTransformation = if (tokenVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                    trailingIcon = {
+                        IconButton(onClick = { tokenVisible = !tokenVisible }) {
+                            Icon(
+                                imageVector = if (tokenVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                                contentDescription = if (tokenVisible) "Ukryj" else "Pokaż"
+                            )
+                        }
+                    }
                 )
                 
                 Spacer(modifier = Modifier.height(8.dp))
