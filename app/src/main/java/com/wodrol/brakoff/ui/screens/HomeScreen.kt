@@ -193,7 +193,7 @@ fun HomeScreen(
                     if (isSyncing) {
                         CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
                     } else {
-                        Icon(Icons.Default.CloudUpload, contentDescription = "Wyślij na PC", tint = MaterialTheme.colorScheme.onSecondaryContainer)
+                        Icon(Icons.Default.CloudUpload, contentDescription = "Wyślij na serwer", tint = MaterialTheme.colorScheme.onSecondaryContainer)
                     }
                 }
 
@@ -331,8 +331,8 @@ fun ServerStatusBar(
     
     val statusText = when {
         isScanning -> errorText ?: "Skanowanie sieci..."
-        isOnline == true -> "Połączono z PC"
-        isOnline == false -> errorText ?: "Brak połączenia z PC"
+        isOnline == true -> "Połączono"
+        isOnline == false -> errorText ?: "Brak połączenia"
         else -> "Sprawdzanie połączenia..."
     }
     

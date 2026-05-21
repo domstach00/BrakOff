@@ -26,7 +26,7 @@ fun VerificationScreen(viewModel: MainViewModel, onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Weryfikacja z PC") },
+                title = { Text("Weryfikacja z serwerem") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Powrót")
@@ -60,7 +60,7 @@ fun VerificationScreen(viewModel: MainViewModel, onBack: () -> Unit) {
                     ListItem(
                         headlineContent = { Text("Kod: ${result.barcode}") },
                         supportingContent = {
-                            Text("Lokalnie: ${result.localQty ?: 0} | Na PC: ${result.serverQty ?: 0}")
+                            Text("Lokalnie: ${result.localQty ?: 0} | Na Serwerze: ${result.serverQty ?: 0}")
                         },
                         trailingContent = {
                             val color = when (result.status) {

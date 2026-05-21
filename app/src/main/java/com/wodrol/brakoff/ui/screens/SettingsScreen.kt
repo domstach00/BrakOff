@@ -128,9 +128,9 @@ fun SettingsScreen(viewModel: MainViewModel, onBack: () -> Unit) {
                 OutlinedTextField(
                     value = urlInput,
                     onValueChange = { urlInput = it },
-                    label = { Text("Adres serwera PC (np. http://192.168.1.10:8080)") },
+                    label = { Text("Adres serwera (np. strona.example.pl)") },
                     modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text("http://192.168.1.xxx:8080") }
+                    placeholder = { Text("strona.example.pl") }
                 )
                 
                 Spacer(modifier = Modifier.height(8.dp))
