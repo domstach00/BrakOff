@@ -90,7 +90,13 @@ class BaseUrlInterceptor(private val preferencesManager: PreferencesManager) : I
         }
         
         if (urlString.isNotBlank()) {
-            val baseUrl = if (urlString.endsWith("/")) urlString else "$urlString/"
+            val fullUrlString = if (!urlString.startsWith("http://") && !urlString.startsWith("https://")) {
+                "https://$urlString"
+            } else {
+                urlString
+            }
+            
+            val baseUrl = if (fullUrlString.endsWith("/")) fullUrlString else "$fullUrlString/"
             baseUrl.toHttpUrlOrNull()?.let { newUrl ->
                 val newFullUrl = request.url.newBuilder()
                     .scheme(newUrl.scheme)
