@@ -297,4 +297,17 @@ class BrakOffRepository(
             false to (e.message ?: "Błąd połączenia")
         }
     }
+
+    suspend fun checkToken(): Pair<Boolean, String?> {
+        return try {
+            val response = api.getCurrentDelivery()
+            when (response.code()) {
+                200, 404, 400 -> true to null
+                401 -> false to "Nieprawidłowy token API"
+                else -> false to "Błąd serwera: ${response.code()}"
+            }
+        } catch (e: Exception) {
+            false to (e.message ?: "Błąd połączenia")
+        }
+    }
 }

@@ -391,8 +391,16 @@ class MainViewModel(
             _isCheckingConnection.value = true
             _connectionError.value = null
             val (online, error) = repository.checkHealth()
-            _isServerOnline.value = online
-            _connectionError.value = error
+            
+            if (online) {
+                val (tokenOk, tokenError) = repository.checkToken()
+                _isServerOnline.value = tokenOk
+                _connectionError.value = tokenError
+            } else {
+                _isServerOnline.value = false
+                _connectionError.value = error
+            }
+
             _isCheckingConnection.value = false
         }
     }
