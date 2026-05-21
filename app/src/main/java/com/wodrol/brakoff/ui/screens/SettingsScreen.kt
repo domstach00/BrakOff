@@ -197,6 +197,7 @@ fun SettingsScreen(viewModel: MainViewModel, onBack: () -> Unit) {
                 )
             }
 
+            /* Hiding auto scan for now
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -208,6 +209,7 @@ fun SettingsScreen(viewModel: MainViewModel, onBack: () -> Unit) {
                     onCheckedChange = { viewModel.setAutoScanEnabled(it) }
                 )
             }
+            */
 
             Spacer(modifier = Modifier.height(24.dp))
             
@@ -278,13 +280,7 @@ fun SettingsScreen(viewModel: MainViewModel, onBack: () -> Unit) {
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Button(
-                            onClick = { 
-                                if (serverUrl.isEmpty()) {
-                                    viewModel.startNetworkScan()
-                                } else {
-                                    viewModel.checkServerHealth()
-                                }
-                            },
+                            onClick = { viewModel.checkServerHealth() },
                             enabled = !isChecking && !isScanningNetwork,
                             modifier = Modifier.weight(1f)
                         ) {
@@ -295,7 +291,7 @@ fun SettingsScreen(viewModel: MainViewModel, onBack: () -> Unit) {
                                     color = MaterialTheme.colorScheme.onPrimary
                                 )
                             } else {
-                                Text(if (serverUrl.isEmpty()) "Szukaj serwera" else "Testuj połączenie")
+                                Text("Testuj połączenie")
                             }
                         }
 

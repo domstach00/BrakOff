@@ -27,7 +27,7 @@ class PreferencesManager(private val context: Context) {
 
     val autoScanEnabled: Flow<Boolean> = context.dataStore.data
         .map { preferences ->
-            preferences[AUTO_SCAN_ENABLED] ?: true
+            preferences[AUTO_SCAN_ENABLED] ?: false
         }
 
     suspend fun setAutoScanEnabled(enabled: Boolean) {
