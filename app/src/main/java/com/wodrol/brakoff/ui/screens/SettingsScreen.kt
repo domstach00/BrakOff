@@ -145,7 +145,8 @@ fun SettingsScreen(viewModel: MainViewModel, onBack: () -> Unit) {
                         viewModel.saveServerUrl(urlInput)
                         scope.launch { snackbarHostState.showSnackbar("Adres zapisany") }
                     },
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = urlInput != serverUrl
                 ) {
                     Icon(Icons.Default.Check, contentDescription = null)
                     Spacer(Modifier.width(8.dp))
@@ -169,7 +170,7 @@ fun SettingsScreen(viewModel: MainViewModel, onBack: () -> Unit) {
                         scope.launch { snackbarHostState.showSnackbar("Nazwa zapisana") }
                     },
                     modifier = Modifier.fillMaxWidth(),
-                    enabled = nameInput.isNotBlank()
+                    enabled = nameInput.isNotBlank() && nameInput != (deviceName ?: "")
                 ) {
                     Icon(Icons.Default.Check, contentDescription = null)
                     Spacer(Modifier.width(8.dp))
@@ -204,7 +205,8 @@ fun SettingsScreen(viewModel: MainViewModel, onBack: () -> Unit) {
                         viewModel.saveApiToken(tokenInput)
                         scope.launch { snackbarHostState.showSnackbar("Token zapisany") }
                     },
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = tokenInput != apiToken
                 ) {
                     Icon(Icons.Default.Check, contentDescription = null)
                     Spacer(Modifier.width(8.dp))
