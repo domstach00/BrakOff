@@ -36,7 +36,7 @@ fun SettingsScreen(viewModel: MainViewModel, onBack: () -> Unit) {
     val isScanningNetwork by viewModel.isScanningNetwork.collectAsState()
 
     var urlInput by remember { mutableStateOf(serverUrl) }
-    var nameInput by remember { mutableStateOf(deviceName) }
+    var nameInput by remember { mutableStateOf(deviceName ?: "") }
     var tokenInput by remember { mutableStateOf(apiToken) }
     var tokenVisible by remember { mutableStateOf(false) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
@@ -45,7 +45,7 @@ fun SettingsScreen(viewModel: MainViewModel, onBack: () -> Unit) {
     val snackbarHostState = remember { SnackbarHostState() }
 
     LaunchedEffect(serverUrl) { urlInput = serverUrl }
-    LaunchedEffect(deviceName) { nameInput = deviceName }
+    LaunchedEffect(deviceName) { nameInput = deviceName ?: "" }
     LaunchedEffect(apiToken) { tokenInput = apiToken }
 
     LaunchedEffect(fetchResult) {
@@ -168,7 +168,8 @@ fun SettingsScreen(viewModel: MainViewModel, onBack: () -> Unit) {
                         viewModel.saveDeviceName(nameInput)
                         scope.launch { snackbarHostState.showSnackbar("Nazwa zapisana") }
                     },
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = nameInput.isNotBlank()
                 ) {
                     Icon(Icons.Default.Check, contentDescription = null)
                     Spacer(Modifier.width(8.dp))

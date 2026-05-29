@@ -49,8 +49,10 @@ fun HomeScreen(
     var nameInput by remember { mutableStateOf("") }
 
     LaunchedEffect(deviceName) {
-        if (deviceName.isBlank()) {
+        if (deviceName == "") {
             showNameDialog = true
+        } else if (deviceName != null) {
+            showNameDialog = false
         }
     }
 
@@ -157,7 +159,7 @@ fun HomeScreen(
                 title = {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text("BrakOff - dostawy", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                        Text(text = deviceName, style = MaterialTheme.typography.labelSmall)
+                        Text(text = deviceName ?: "Wczytywanie...", style = MaterialTheme.typography.labelSmall)
                     }
                 },
                 actions = {

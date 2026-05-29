@@ -71,8 +71,8 @@ class MainViewModel(
     val serverUrl: StateFlow<String> = preferencesManager.serverUrl
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "")
 
-    val deviceName: StateFlow<String> = preferencesManager.deviceName
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "")
+    val deviceName: StateFlow<String?> = preferencesManager.deviceName
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     val deviceId: StateFlow<String> = preferencesManager.deviceId
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "")
