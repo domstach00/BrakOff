@@ -11,6 +11,7 @@ data class LocalProductState(
     val fromDelivery: Boolean,
     val expectedQty: Int?,
     val globalScannedQty: Int = 0,
+    val unit: String = "szt",
     val revision: Long = 0,
     val updatedAt: Long = System.currentTimeMillis(),
     val syncStatus: SyncStatus = SyncStatus.PENDING,

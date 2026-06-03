@@ -52,7 +52,8 @@ class BrakOffRepository(
                 updatedAt = System.currentTimeMillis(),
                 revision = existing.revision + 1,
                 syncStatus = SyncStatus.PENDING,
-                globalScannedQty = deliveryItem?.scannedQty ?: existing.globalScannedQty
+                globalScannedQty = deliveryItem?.scannedQty ?: existing.globalScannedQty,
+                unit = deliveryItem?.unit ?: existing.unit
             )
         } else {
             LocalProductState(
@@ -62,6 +63,7 @@ class BrakOffRepository(
                 fromDelivery = deliveryItem != null,
                 expectedQty = deliveryItem?.expectedQty,
                 globalScannedQty = deliveryItem?.scannedQty ?: 0,
+                unit = deliveryItem?.unit ?: "szt",
                 revision = 1,
                 syncStatus = SyncStatus.PENDING
             )
@@ -128,7 +130,8 @@ class BrakOffRepository(
                         name = dto.name,
                         expectedQty = dto.expectedQty,
                         deliveryId = body.deliveryId,
-                        scannedQty = dto.scannedQty
+                        scannedQty = dto.scannedQty,
+                        unit = dto.unit ?: "szt"
                     )
                 }
                 
@@ -144,6 +147,7 @@ class BrakOffRepository(
                             name = serverItem.name,
                             expectedQty = serverItem.expectedQty,
                             globalScannedQty = serverItem.scannedQty,
+                            unit = serverItem.unit,
                             fromDelivery = true
                         )
                         if (updatedState != state) {
@@ -196,6 +200,7 @@ class BrakOffRepository(
                         fromDelivery = remote.fromDelivery,
                         expectedQty = deliveryItem?.expectedQty,
                         globalScannedQty = deliveryItem?.scannedQty ?: 0,
+                        unit = remote.unit ?: deliveryItem?.unit ?: "szt",
                         revision = remote.revision,
                         syncStatus = SyncStatus.SYNCED,
                         updatedAt = try { isoFormat.parse(remote.updatedAt)?.time ?: System.currentTimeMillis() } catch(e: Exception) { System.currentTimeMillis() }

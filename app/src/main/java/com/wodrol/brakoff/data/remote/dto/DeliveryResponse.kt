@@ -10,5 +10,6 @@ data class DeliveryItemDto(
     val barcode: String,
     val name: String,
     val expectedQty: Int,
-    val scannedQty: Int = 0
+    val scannedQty: Int = 0,
+    val unit: String? = "szt"
 )

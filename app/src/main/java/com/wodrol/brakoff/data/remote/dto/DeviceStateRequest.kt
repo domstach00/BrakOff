@@ -9,5 +9,6 @@ data class DeviceStateRequest(
     val quantity: Int,
     val fromDelivery: Boolean,
     val updatedAt: String,
-    val revision: Long
+    val revision: Long,
+    val unit: String? = "szt"
 )

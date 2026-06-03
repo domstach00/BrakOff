@@ -26,6 +26,7 @@ fun ProductDetailsScreen(barcode: String, viewModel: MainViewModel, onBack: () -
     val displayName = product?.name ?: deliveryItem?.name ?: "Produkt spoza dostawy"
     val isFromDelivery = product?.fromDelivery == true || deliveryItem != null
     val expectedQuantity = product?.expectedQty ?: deliveryItem?.expectedQty
+    val unit = product?.unit ?: deliveryItem?.unit ?: "szt"
 
     var quantityText by remember { mutableStateOf(product?.quantity?.toString() ?: "1") }
 
@@ -80,7 +81,7 @@ fun ProductDetailsScreen(barcode: String, viewModel: MainViewModel, onBack: () -
                         ) {
                             Text("Oczekiwana ilość:", style = MaterialTheme.typography.bodyLarge)
                             Text(
-                                "$expectedQuantity",
+                                "$expectedQuantity $unit",
                                 style = MaterialTheme.typography.titleLarge,
                                 color = MaterialTheme.colorScheme.primary
                             )
@@ -94,7 +95,7 @@ fun ProductDetailsScreen(barcode: String, viewModel: MainViewModel, onBack: () -
                         ) {
                             Text("Skanowanie globalne:", style = MaterialTheme.typography.bodyLarge)
                             Text(
-                                "$globalScanned",
+                                "$globalScanned $unit",
                                 style = MaterialTheme.typography.titleLarge,
                                 color = MaterialTheme.colorScheme.secondary
                             )
@@ -110,7 +111,7 @@ fun ProductDetailsScreen(barcode: String, viewModel: MainViewModel, onBack: () -
                             ) {
                                 Text("Skanowanie globalne:", style = MaterialTheme.typography.bodyLarge)
                                 Text(
-                                    "$globalScanned",
+                                    "$globalScanned $unit",
                                     style = MaterialTheme.typography.titleLarge,
                                     color = MaterialTheme.colorScheme.secondary
                                 )
@@ -148,7 +149,7 @@ fun ProductDetailsScreen(barcode: String, viewModel: MainViewModel, onBack: () -
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
             ) {
                 Column(modifier = Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("Wprowadź ilość", style = MaterialTheme.typography.labelLarge)
+                    Text("Wprowadź ilość ($unit)", style = MaterialTheme.typography.labelLarge)
                     
                     OutlinedTextField(
                         value = quantityText,

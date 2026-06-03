@@ -9,5 +9,6 @@ data class DeliveryItem(
     val name: String,
     val expectedQty: Int,
     val deliveryId: String,
-    val scannedQty: Int = 0
+    val scannedQty: Int = 0,
+    val unit: String = "szt"
 )

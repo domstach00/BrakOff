@@ -44,15 +44,27 @@ class MainViewModel(
             val state = stateMap[barcode]
             val deliveryItem = delivery.find { it.barcode == barcode }
             
-            state ?: LocalProductState(
+            val item = state ?: LocalProductState(
                 barcode = barcode,
                 name = deliveryItem?.name,
                 quantity = 0,
                 fromDelivery = deliveryItem != null,
                 expectedQty = deliveryItem?.expectedQty,
                 globalScannedQty = deliveryItem?.scannedQty ?: 0,
+                unit = deliveryItem?.unit ?: "szt",
                 syncStatus = SyncStatus.SYNCED
             )
+            
+            // Prefer unit and name from delivery if available
+            if (deliveryItem != null) {
+                item.copy(
+                    unit = deliveryItem.unit,
+                    name = deliveryItem.name,
+                    expectedQty = deliveryItem.expectedQty
+                )
+            } else {
+                item
+            }
         }.filter {
             it.barcode.contains(query, ignoreCase = true) || 
             (it.name?.contains(query, ignoreCase = true) == true)
@@ -123,15 +135,27 @@ class MainViewModel(
             val state = stateMap[barcode]
             val deliveryItem = delivery.find { it.barcode == barcode }
             
-            state ?: LocalProductState(
+            val item = state ?: LocalProductState(
                 barcode = barcode,
                 name = deliveryItem?.name,
                 quantity = 0,
                 fromDelivery = deliveryItem != null,
                 expectedQty = deliveryItem?.expectedQty,
                 globalScannedQty = deliveryItem?.scannedQty ?: 0,
+                unit = deliveryItem?.unit ?: "szt",
                 syncStatus = SyncStatus.SYNCED
             )
+            
+            // Prefer unit and name from delivery if available
+            if (deliveryItem != null) {
+                item.copy(
+                    unit = deliveryItem.unit,
+                    name = deliveryItem.name,
+                    expectedQty = deliveryItem.expectedQty
+                )
+            } else {
+                item
+            }
         }.filter {
             query.isEmpty() || 
             it.barcode.contains(query, ignoreCase = true) || 
@@ -458,7 +482,9 @@ class MainViewModel(
                     else -> VerificationStatus.DIFFERENT_VALUE
                 }
                 
-                results.add(VerificationResult(barcode, local?.quantity, server?.quantity, status))
+                val unit = local?.unit ?: server?.unit ?: "szt"
+                
+                results.add(VerificationResult(barcode, local?.quantity, server?.quantity, status, unit))
             }
             _verificationResults.value = results
         }
@@ -469,7 +495,8 @@ data class VerificationResult(
     val barcode: String,
     val localQty: Int?,
     val serverQty: Int?,
-    val status: VerificationStatus
+    val status: VerificationStatus,
+    val unit: String = "szt"
 )
 
 enum class VerificationStatus {

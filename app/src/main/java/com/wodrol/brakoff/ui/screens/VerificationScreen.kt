@@ -60,7 +60,8 @@ fun VerificationScreen(viewModel: MainViewModel, onBack: () -> Unit) {
                     ListItem(
                         headlineContent = { Text("Kod: ${result.barcode}") },
                         supportingContent = {
-                            Text("Lokalnie: ${result.localQty ?: 0} | Na Serwerze: ${result.serverQty ?: 0}")
+                            val unit = result.unit
+                            Text("Lokalnie: ${result.localQty ?: 0} $unit | Na Serwerze: ${result.serverQty ?: 0} $unit")
                         },
                         trailingContent = {
                             val color = when (result.status) {

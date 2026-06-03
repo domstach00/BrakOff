@@ -275,9 +275,10 @@ fun ScannerProductItem(state: com.wodrol.brakoff.data.local.entity.LocalProductS
             Column(horizontalAlignment = Alignment.End) {
                 Row(verticalAlignment = Alignment.Bottom) {
                     val isCompleted = state.expectedQty != null && state.globalScannedQty >= state.expectedQty
+                    val unit = state.unit
                     
                     Text(
-                        text = "${state.quantity}",
+                        text = "${state.quantity} $unit",
                         style = MaterialTheme.typography.titleLarge,
                         color = if (isCompleted) com.wodrol.brakoff.ui.theme.SuccessGreen else MaterialTheme.colorScheme.primary,
                         fontWeight = FontWeight.Bold
@@ -286,18 +287,18 @@ fun ScannerProductItem(state: com.wodrol.brakoff.data.local.entity.LocalProductS
                     val totalScanned = state.globalScannedQty
                     if (state.expectedQty != null) {
                         Text(
-                            text = " ($totalScanned) / ${state.expectedQty}",
+                            text = " ($totalScanned) / ${state.expectedQty} $unit",
                             style = MaterialTheme.typography.labelSmall,
                             color = if (isCompleted) com.wodrol.brakoff.ui.theme.SuccessGreen else MaterialTheme.colorScheme.onSurfaceVariant,
                             fontWeight = if (isCompleted) FontWeight.Bold else FontWeight.Normal,
-                            modifier = Modifier.padding(bottom = 2.dp)
+                            modifier = Modifier.padding(bottom = 2.dp, start = 4.dp)
                         )
                     } else if (totalScanned > 0) {
                         Text(
-                            text = " ($totalScanned)",
+                            text = " ($totalScanned) $unit",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(bottom = 2.dp)
+                            modifier = Modifier.padding(bottom = 2.dp, start = 4.dp)
                         )
                     }
                 }
