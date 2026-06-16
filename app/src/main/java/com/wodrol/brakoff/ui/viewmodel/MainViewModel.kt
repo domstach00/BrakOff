@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.Dispatchers
@@ -20,7 +21,8 @@ import kotlin.time.Duration.Companion.seconds
 
 class MainViewModel(
     private val repository: BrakOffRepository,
-    private val preferencesManager: PreferencesManager
+    private val preferencesManager: PreferencesManager,
+    private val startBackgroundJobs: Boolean = true
 ) : ViewModel() {
 
     private val _searchQuery = MutableStateFlow("")
@@ -95,6 +97,17 @@ class MainViewModel(
     val scanButtonLeft: StateFlow<Boolean> = preferencesManager.scanButtonLeft
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
+    val selectedDeliveryId: StateFlow<String> = preferencesManager.selectedDeliveryId
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "")
+
+    val currentDeliverySummary: StateFlow<PreferencesManager.CurrentDeliverySummary> =
+        preferencesManager.currentDeliverySummary
+            .stateIn(
+                viewModelScope,
+                SharingStarted.WhileSubscribed(5000),
+                PreferencesManager.CurrentDeliverySummary()
+            )
+
     val dismissedArchiveId: StateFlow<String> = preferencesManager.dismissedArchiveId
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "")
 
@@ -109,6 +122,9 @@ class MainViewModel(
 
     private val _isScanningNetwork = MutableStateFlow(false)
     val isScanningNetwork: StateFlow<Boolean> = _isScanningNetwork.asStateFlow()
+
+    private val _activeDeliveries = MutableStateFlow<List<com.wodrol.brakoff.data.remote.dto.ActiveDeliveryDto>>(emptyList())
+    val activeDeliveries: StateFlow<List<com.wodrol.brakoff.data.remote.dto.ActiveDeliveryDto>> = _activeDeliveries.asStateFlow()
 
     private val _autoScanEnabled = preferencesManager.autoScanEnabled
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
@@ -172,8 +188,10 @@ class MainViewModel(
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     init {
-        startAutoSync()
-        startConnectionMonitor()
+        if (startBackgroundJobs) {
+            startAutoSync()
+            startConnectionMonitor()
+        }
     }
 
     private var monitorJob: kotlinx.coroutines.Job? = null
@@ -237,8 +255,20 @@ class MainViewModel(
         viewModelScope.launch {
             while (true) {
                 try {
+                    // 0. Sprawdź czy mamy wybraną dostawę, jeśli nie - pobierz listę
+                    if (selectedDeliveryId.value.isEmpty()) {
+                        fetchActiveDeliveries()
+                        delay(15.seconds)
+                        continue
+                    }
+
                     // 1. Wysyłamy lokalne zmiany na serwer
-                    repository.syncPendingStates()
+                    val syncResult = repository.syncPendingStates()
+                    if (syncResult is BrakOffRepository.FetchResult.ScanConflict ||
+                        syncResult is BrakOffRepository.FetchResult.InvalidToken
+                    ) {
+                        _fetchResult.value = syncResult
+                    }
                     
                     // 2. Pobieramy aktualne dane z serwera (np. zmiany w expectedQty)
                     // force = false sprawia, że jeśli dostawa się nie zmieniła, 
@@ -248,8 +278,12 @@ class MainViewModel(
                     // Jeśli pojawiła się zupełnie nowa dostawa (inny ID) lub stara została zakończona,
                     // powiadamiamy użytkownika przez _fetchResult
                     if (result is BrakOffRepository.FetchResult.NewDeliveryAvailable || 
-                        result is BrakOffRepository.FetchResult.DeliveryArchived) {
+                        result is BrakOffRepository.FetchResult.DeliveryArchived ||
+                        result is BrakOffRepository.FetchResult.ActiveDeliveriesLoaded) {
                         _fetchResult.value = result
+                        if (result is BrakOffRepository.FetchResult.ActiveDeliveriesLoaded) {
+                            _activeDeliveries.value = result.deliveries
+                        }
                     }
                     
                     // 3. Sprawdzamy stan połączenia
@@ -279,6 +313,61 @@ class MainViewModel(
     fun updateQuantity(barcode: String, quantity: Int) {
         viewModelScope.launch {
             repository.updateProductQuantity(barcode, quantity)
+
+            when (val syncResult = repository.syncPendingStates()) {
+                is BrakOffRepository.FetchResult.ScanConflict,
+                is BrakOffRepository.FetchResult.InvalidToken,
+                is BrakOffRepository.FetchResult.Error -> {
+                    _fetchResult.value = syncResult
+                }
+                else -> {
+                    val state = repository.getProductState(barcode)
+                    if (state?.syncStatus == SyncStatus.CONFLICT) {
+                        checkConflictSuggestions()
+                    }
+                }
+            }
+        }
+    }
+
+    private fun checkConflictSuggestions() {
+        viewModelScope.launch {
+            // We need to pass the selectedDeliveryId if we want to ensure we get suggestions for the right context,
+            // but repository.fetchCurrentDelivery(force = false) uses preferencesManager.selectedDeliveryId.first()
+            // which should be correct.
+            val result = repository.fetchCurrentDelivery(force = false)
+            if (result is BrakOffRepository.FetchResult.ScanConflict) {
+                _fetchResult.value = result
+            }
+        }
+    }
+
+    fun switchDelivery(deliveryId: String, retryBarcode: String? = null, retryQuantity: Int? = null) {
+        viewModelScope.launch {
+            _isSyncing.value = true
+            preferencesManager.saveSelectedDeliveryId(deliveryId)
+            repository.clearLocalData()
+            val result = repository.fetchCurrentDelivery(force = true, deliveryId = deliveryId)
+            _fetchResult.value = result
+            
+            if (retryBarcode != null && retryQuantity != null) {
+                repository.updateProductQuantity(retryBarcode, retryQuantity)
+            }
+            _isSyncing.value = false
+        }
+    }
+
+    fun fetchActiveDeliveries() {
+        viewModelScope.launch {
+            val result = repository.fetchActiveDeliveries()
+            if (result is BrakOffRepository.FetchResult.ActiveDeliveriesLoaded) {
+                _activeDeliveries.value = result.deliveries
+                if (result.deliveries.size == 1 && selectedDeliveryId.value.isBlank()) {
+                    switchDelivery(result.deliveries.first().deliveryId)
+                    return@launch
+                }
+            }
+            _fetchResult.value = result
         }
     }
 
@@ -287,7 +376,11 @@ class MainViewModel(
 
     fun fetchDelivery(force: Boolean = false) {
         viewModelScope.launch {
-            _fetchResult.value = repository.fetchCurrentDelivery(force)
+            if (selectedDeliveryId.value.isBlank()) {
+                fetchActiveDeliveries()
+            } else {
+                _fetchResult.value = repository.fetchCurrentDelivery(force)
+            }
             checkServerHealth()
         }
     }
@@ -448,8 +541,13 @@ class MainViewModel(
     fun forceSync() {
         viewModelScope.launch {
             _isSyncing.value = true
-            repository.syncPendingStates()
+            val syncResult = repository.syncPendingStates()
             _isSyncing.value = false
+            if (syncResult is BrakOffRepository.FetchResult.ScanConflict ||
+                syncResult is BrakOffRepository.FetchResult.InvalidToken
+            ) {
+                _fetchResult.value = syncResult
+            }
             // Po wymuszonej synchronizacji odświeżamy weryfikację
             verifyWithServer()
         }

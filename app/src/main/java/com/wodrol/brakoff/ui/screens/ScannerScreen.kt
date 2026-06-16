@@ -71,8 +71,35 @@ fun ScannerScreen(viewModel: MainViewModel, onBarcodeScanned: (String) -> Unit) 
     
     val manualQuery by viewModel.manualBarcodeQuery.collectAsState()
     val displayItems by viewModel.scannerDisplayList.collectAsState()
+    val currentDeliverySummary by viewModel.currentDeliverySummary.collectAsState()
 
     Column(modifier = Modifier.fillMaxSize()) {
+        if (currentDeliverySummary.deliveryId.isNotBlank()) {
+            Surface(
+                color = MaterialTheme.colorScheme.surfaceVariant,
+                tonalElevation = 2.dp
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp)
+                ) {
+                    Text(
+                        currentDeliverySummary.title(),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    currentDeliverySummary.subtitle()?.let {
+                        Text(
+                            it,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+        }
+
         // Górna część z kamerą (zajmuje 60% wysokości)
         Box(
             modifier = Modifier

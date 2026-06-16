@@ -2,7 +2,11 @@ package com.wodrol.brakoff.data.remote.dto
 
 data class DeliveryResponse(
     val deliveryId: String,
-    val version: String?,
+    val deliveryDisplayName: String?,
+    val sourceFileName: String?,
+    val supplierName: String?,
+    val commercialDocumentNumber: String?,
+    val warehouseDocumentNumber: String?,
     val items: List<DeliveryItemDto>
 )
 

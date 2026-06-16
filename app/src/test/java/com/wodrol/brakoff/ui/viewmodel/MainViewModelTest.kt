@@ -7,8 +7,13 @@ import com.wodrol.brakoff.data.repository.BrakOffRepository
 import com.wodrol.brakoff.util.PreferencesManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.test.*
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Before
@@ -35,13 +40,25 @@ class MainViewModelTest {
         MockitoAnnotations.openMocks(this)
         Dispatchers.setMain(testDispatcher)
 
-        `when`(repository.allDeliveryItems).thenReturn(flowOf(emptyList()))
-        `when`(repository.allProductStates).thenReturn(flowOf(emptyList()))
-        `when`(preferencesManager.serverUrl).thenReturn(flowOf(""))
-        `when`(preferencesManager.deviceName).thenReturn(flowOf("Test Device"))
-        `when`(preferencesManager.deviceId).thenReturn(flowOf("test-id"))
+        runTest {
+            `when`(repository.allDeliveryItems).thenReturn(flowOf(emptyList()))
+            `when`(repository.allProductStates).thenReturn(flowOf(emptyList()))
+            `when`(repository.checkHealth()).thenReturn(true to null)
+            `when`(repository.syncPendingStates()).thenReturn(null)
+            `when`(preferencesManager.serverUrl).thenReturn(flowOf(""))
+            `when`(preferencesManager.deviceName).thenReturn(flowOf("Test Device"))
+            `when`(preferencesManager.deviceId).thenReturn(flowOf("test-id"))
+            `when`(preferencesManager.apiToken).thenReturn(flowOf("token"))
+            `when`(preferencesManager.scanButtonLeft).thenReturn(flowOf(false))
+            `when`(preferencesManager.selectedDeliveryId).thenReturn(flowOf("del1"))
+            `when`(preferencesManager.dismissedArchiveId).thenReturn(flowOf(""))
+            `when`(preferencesManager.autoScanEnabled).thenReturn(flowOf(false))
+            `when`(preferencesManager.currentDeliverySummary).thenReturn(
+                flowOf(PreferencesManager.CurrentDeliverySummary(deliveryId = "del1", deliveryDisplayName = "Test"))
+            )
+        }
 
-        viewModel = MainViewModel(repository, preferencesManager)
+        viewModel = MainViewModel(repository, preferencesManager, startBackgroundJobs = false)
     }
 
     @After
@@ -50,8 +67,7 @@ class MainViewModelTest {
     }
 
     @Test
-    fun `homeDisplayList sorting - incomplete items with zero quantity should be at the top`() = runTest {
-        // Given
+    fun `homeDisplayList sorting incomplete items with zero quantity at top`() = runTest {
         val deliveryItems = listOf(
             DeliveryItem("111", "Product A (Done)", 10, "del1", 10),
             DeliveryItem("222", "Product B (Zero)", 10, "del1", 0),
@@ -66,26 +82,20 @@ class MainViewModelTest {
         `when`(repository.allDeliveryItems).thenReturn(flowOf(deliveryItems))
         `when`(repository.allProductStates).thenReturn(flowOf(productStates))
 
-        // Re-init viewModel to pick up new flows
-        viewModel = MainViewModel(repository, preferencesManager)
+        viewModel = MainViewModel(repository, preferencesManager, startBackgroundJobs = false)
+        val job = backgroundScope.launch { viewModel.homeDisplayList.collect { } }
         advanceUntilIdle()
 
-        // When
         val result = viewModel.homeDisplayList.value
 
-        // Then
-        // Expected order:
-        // 1. Product B (Incomplete, quantity 0)
-        // 2. Product C (Incomplete, quantity > 0)
-        // 3. Product A (Completed)
         assertEquals("222", result[0].barcode)
         assertEquals("333", result[1].barcode)
         assertEquals("111", result[2].barcode)
+        job.cancel()
     }
 
     @Test
-    fun `homeDisplayList sorting - failed sync should be at the very top`() = runTest {
-        // Given
+    fun `homeDisplayList sorting failed sync at top`() = runTest {
         val deliveryItems = listOf(
             DeliveryItem("111", "Normal", 10, "del1", 0)
         )
@@ -97,14 +107,14 @@ class MainViewModelTest {
         `when`(repository.allDeliveryItems).thenReturn(flowOf(deliveryItems))
         `when`(repository.allProductStates).thenReturn(flowOf(productStates))
 
-        viewModel = MainViewModel(repository, preferencesManager)
+        viewModel = MainViewModel(repository, preferencesManager, startBackgroundJobs = false)
+        val job = backgroundScope.launch { viewModel.homeDisplayList.collect { } }
         advanceUntilIdle()
 
-        // When
         val result = viewModel.homeDisplayList.value
 
-        // Then
         assertEquals("999", result[0].barcode)
         assertEquals("111", result[1].barcode)
+        job.cancel()
     }
 }

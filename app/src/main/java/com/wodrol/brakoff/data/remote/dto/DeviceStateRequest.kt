@@ -1,9 +1,8 @@
 package com.wodrol.brakoff.data.remote.dto
 
 data class DeviceStateRequest(
-    val deliveryId: String,
     val deviceId: String,
-    val deviceName: String,
+    val deviceName: String?,
     val barcode: String,
     val name: String?,
     val quantity: Int,

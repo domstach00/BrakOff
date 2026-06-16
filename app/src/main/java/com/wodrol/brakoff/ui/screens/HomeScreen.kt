@@ -39,6 +39,9 @@ fun HomeScreen(
     val fetchResult by viewModel.fetchResult.collectAsState()
     val dismissedArchiveId by viewModel.dismissedArchiveId.collectAsState()
     val scanButtonLeft by viewModel.scanButtonLeft.collectAsState()
+    val selectedDeliveryId by viewModel.selectedDeliveryId.collectAsState()
+    val activeDeliveries by viewModel.activeDeliveries.collectAsState()
+    val currentDeliverySummary by viewModel.currentDeliverySummary.collectAsState()
     
     val isScanningNetwork by viewModel.isScanningNetwork.collectAsState()
     val connectionError by viewModel.connectionError.collectAsState()
@@ -108,6 +111,69 @@ fun HomeScreen(
     }
 
     when (val result = fetchResult) {
+        is BrakOffRepository.FetchResult.ActiveDeliveriesLoaded -> {
+            if (selectedDeliveryId.isEmpty() && result.deliveries.size > 1) {
+                AlertDialog(
+                    onDismissRequest = { /* Force selection or stay empty */ },
+                    title = { Text("Wybierz dostawę") },
+                    text = {
+                        Column {
+                            Text("Wykryto wiele aktywnych dostaw. Wybierz tę, którą chcesz teraz obsłużyć:")
+                            Spacer(modifier = Modifier.height(8.dp))
+                            LazyColumn(modifier = Modifier.heightIn(max = 300.dp)) {
+                                items(result.deliveries) { delivery ->
+                                    Card(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(vertical = 4.dp)
+                                            .clickable { 
+                                                viewModel.switchDelivery(delivery.deliveryId)
+                                                viewModel.clearFetchResult()
+                                            },
+                                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                                    ) {
+                                        Column(modifier = Modifier.padding(12.dp)) {
+                                            Text(delivery.uiTitle(), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                                            delivery.uiSubtitle()?.let {
+                                                Text(it, style = MaterialTheme.typography.bodySmall)
+                                            }
+                                            Text("ID: ${delivery.deliveryId}", style = MaterialTheme.typography.labelSmall)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    confirmButton = {}
+                )
+            }
+        }
+        is BrakOffRepository.FetchResult.ScanConflict -> {
+            AlertDialog(
+                onDismissRequest = { viewModel.clearFetchResult() },
+                title = { Text("Produkt w innej dostawie") },
+                text = {
+                    Column {
+                        Text("Zeskanowany produkt (${result.barcode}) nie należy do obecnej dostawy, ale został znaleziony w:")
+                        Spacer(modifier = Modifier.height(8.dp))
+                        result.suggestedDeliveries.forEach { delivery ->
+                            Button(
+                                onClick = { 
+                                    viewModel.switchDelivery(delivery.deliveryId, result.barcode, result.quantity)
+                                    viewModel.clearFetchResult()
+                                },
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                            ) {
+                                Text("PRZEŁĄCZ NA: ${delivery.uiTitle()}")
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { viewModel.clearFetchResult() }) { Text("ANULUJ") }
+                }
+            )
+        }
         is BrakOffRepository.FetchResult.NewDeliveryAvailable -> {
             AlertDialog(
                 onDismissRequest = { viewModel.clearFetchResult() },
@@ -158,7 +224,10 @@ fun HomeScreen(
             CenterAlignedTopAppBar(
                 title = {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("BrakOff - dostawy", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                        Text(currentDeliverySummary.title(), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                        currentDeliverySummary.subtitle()?.let {
+                            Text(text = it, style = MaterialTheme.typography.labelSmall)
+                        }
                         Text(text = deviceName ?: "Wczytywanie...", style = MaterialTheme.typography.labelSmall)
                     }
                 },

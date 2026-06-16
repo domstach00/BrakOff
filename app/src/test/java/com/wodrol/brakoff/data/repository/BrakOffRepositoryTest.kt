@@ -11,6 +11,8 @@ import com.wodrol.brakoff.util.PreferencesManager
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.Before
 import org.junit.Test
 import org.mockito.Mock
@@ -44,8 +46,7 @@ class BrakOffRepositoryTest {
     }
 
     @Test
-    fun `syncPendingStates - should update status to SYNCED on success`() = runTest {
-        // Given
+    fun `syncPendingStates updates status to synced on success`() = runTest {
         val pendingState = LocalProductState(
             barcode = "123",
             name = "Test",
@@ -55,57 +56,72 @@ class BrakOffRepositoryTest {
             updatedAt = System.currentTimeMillis(),
             syncStatus = SyncStatus.PENDING
         )
-        
+
         `when`(productStateDao.getPendingSyncStates()).thenReturn(listOf(pendingState))
+        `when`(preferencesManager.selectedDeliveryId).thenReturn(flowOf("delivery-1"))
         `when`(preferencesManager.deviceId).thenReturn(flowOf("device123"))
         `when`(preferencesManager.deviceName).thenReturn(flowOf("My Phone"))
-        `when`(deliveryDao.getItemByBarcode("123")).thenReturn(null)
-        
-        val successResponse = DeviceStateResponse(
-            accepted = true,
-            reason = null,
-            serverQuantity = 5,
-            serverRevision = 1L
+        `when`(
+            api.updateDeviceStateForDelivery(
+                any(),
+                any()
+            )
+        ).thenReturn(
+            Response.success(
+                DeviceStateResponse(
+                    accepted = true,
+                    reason = null,
+                    serverQuantity = 5
+                )
+            )
         )
-        `when`(api.updateDeviceState(any())).thenReturn(Response.success(successResponse))
 
-        // When
         repository.syncPendingStates()
 
-        // Then
-        verify(productStateDao).insertState(argThat<LocalProductState> { state -> state.syncStatus == SyncStatus.SYNCED && state.barcode == "123" })
+        verify(productStateDao).insertState(
+            argThat<LocalProductState> { syncStatus == SyncStatus.SYNCED && barcode == "123" }
+        )
     }
 
     @Test
-    fun `syncPendingStates - should set CONFLICT status when server returns STALE_REVISION`() = runTest {
-        // Given
+    fun `syncPendingStates returns scan conflict for other delivery`() = runTest {
         val pendingState = LocalProductState(
             barcode = "123",
             name = "Test",
             quantity = 5,
-            fromDelivery = true,
-            expectedQty = 10,
+            fromDelivery = false,
+            expectedQty = null,
             updatedAt = System.currentTimeMillis(),
             syncStatus = SyncStatus.PENDING,
             revision = 2
         )
-        
+
         `when`(productStateDao.getPendingSyncStates()).thenReturn(listOf(pendingState))
+        `when`(preferencesManager.selectedDeliveryId).thenReturn(flowOf("delivery-1"))
         `when`(preferencesManager.deviceId).thenReturn(flowOf("device123"))
         `when`(preferencesManager.deviceName).thenReturn(flowOf("My Phone"))
-        
-        val conflictResponse = DeviceStateResponse(
-            accepted = false,
-            reason = "STALE_REVISION",
-            serverQuantity = 10,
-            serverRevision = 5L
-        )
-        `when`(api.updateDeviceState(any())).thenReturn(Response.success(conflictResponse))
 
-        // When
-        repository.syncPendingStates()
+        val errorJson = """
+            {
+              "accepted": false,
+              "unchanged": false,
+              "reason": "ITEM_BELONGS_TO_OTHER_DELIVERY",
+              "serverQuantity": 0,
+              "suggestedDeliveries": [
+                {
+                  "deliveryId": "delivery-2",
+                  "deliveryDisplayName": "Hermes"
+                }
+              ]
+            }
+        """.trimIndent()
+        val errorBody = errorJson.toResponseBody("application/json".toMediaType())
 
-        // Then
-        verify(productStateDao).insertState(argThat<LocalProductState> { state -> state.syncStatus == SyncStatus.CONFLICT && state.remoteQuantityLastSeen == 10 })
+        `when`(api.updateDeviceStateForDelivery(any(), any())).thenReturn(Response.error(409, errorBody))
+
+        val result = repository.syncPendingStates()
+
+        verify(productStateDao).updateSyncStatus("123", SyncStatus.CONFLICT)
+        assert(result is BrakOffRepository.FetchResult.ScanConflict)
     }
 }
