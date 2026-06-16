@@ -10,6 +10,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.wodrol.brakoff.ui.screens.HomeScreen
 import com.wodrol.brakoff.ui.screens.ProductDetailsScreen
+import com.wodrol.brakoff.ui.screens.QrConfigScannerScreen
 import com.wodrol.brakoff.ui.screens.ScannerScreen
 import com.wodrol.brakoff.ui.screens.SettingsScreen
 import com.wodrol.brakoff.ui.screens.VerificationScreen
@@ -79,6 +80,13 @@ fun BrakOffNavigation(viewModel: MainViewModel) {
         }
         composable("settings") {
             SettingsScreen(
+                viewModel = viewModel,
+                onBack = { navController.popBackStack() },
+                onOpenQrScanner = { navController.navigate("settings/qr-scanner") }
+            )
+        }
+        composable("settings/qr-scanner") {
+            QrConfigScannerScreen(
                 viewModel = viewModel,
                 onBack = { navController.popBackStack() }
             )

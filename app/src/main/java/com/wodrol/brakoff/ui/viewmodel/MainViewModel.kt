@@ -407,6 +407,15 @@ class MainViewModel(
         }
     }
 
+    fun applyQrConfiguration(serverAddress: String, token: String) {
+        viewModelScope.launch {
+            preferencesManager.saveServerUrl(serverAddress)
+            preferencesManager.saveApiToken(token)
+            checkServerHealth()
+            fetchActiveDeliveries()
+        }
+    }
+
     fun setScanButtonLeft(isLeft: Boolean) {
         viewModelScope.launch {
             preferencesManager.saveScanButtonLeft(isLeft)

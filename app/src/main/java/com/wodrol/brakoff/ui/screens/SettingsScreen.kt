@@ -6,6 +6,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Visibility
@@ -24,7 +25,11 @@ import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(viewModel: MainViewModel, onBack: () -> Unit) {
+fun SettingsScreen(
+    viewModel: MainViewModel,
+    onBack: () -> Unit,
+    onOpenQrScanner: () -> Unit
+) {
     val serverUrl by viewModel.serverUrl.collectAsState()
     val deviceName by viewModel.deviceName.collectAsState()
     val deviceId by viewModel.deviceId.collectAsState()
@@ -140,6 +145,42 @@ fun SettingsScreen(viewModel: MainViewModel, onBack: () -> Unit) {
                     modifier = Modifier.fillMaxWidth(),
                     placeholder = { Text("strona.example.pl") }
                 )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                ElevatedCard(
+                    onClick = onOpenQrScanner,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.elevatedCardColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer
+                    )
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Default.QrCodeScanner,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text(
+                                "Skanuj QR konfiguracji",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                            Text(
+                                "Wczytaj adres serwera i token kamerą, a aplikacja zapisze je od razu.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        }
+                    }
+                }
                 
                 Spacer(modifier = Modifier.height(8.dp))
                 
