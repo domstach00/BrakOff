@@ -1,21 +1,28 @@
 package com.wodrol.brakoff.data.repository
 
+import android.content.Context
 import androidx.work.Constraints
 import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import com.google.gson.Gson
+import com.wodrol.brakoff.data.local.dao.CommentDao
 import com.wodrol.brakoff.data.local.dao.DeliveryDao
 import com.wodrol.brakoff.data.local.dao.ProductStateDao
+import com.wodrol.brakoff.data.local.entity.CommentEntity
+import com.wodrol.brakoff.data.local.entity.CommentSyncStatus
 import com.wodrol.brakoff.data.local.entity.DeliveryItem
 import com.wodrol.brakoff.data.local.entity.LocalProductState
 import com.wodrol.brakoff.data.local.entity.SyncStatus
 import com.wodrol.brakoff.data.remote.BrakOffApi
 import com.wodrol.brakoff.data.remote.dto.ActiveDeliveryDto
+import com.wodrol.brakoff.data.remote.dto.CommentErrorResponse
 import com.wodrol.brakoff.data.remote.dto.DeliveryResponse
 import com.wodrol.brakoff.data.remote.dto.DeviceStateRequest
 import com.wodrol.brakoff.data.remote.dto.DeviceStateResponse
+import com.wodrol.brakoff.data.remote.dto.ItemCommentRequest
+import com.wodrol.brakoff.util.DateUtils
 import com.wodrol.brakoff.util.PreferencesManager
 import com.wodrol.brakoff.worker.SyncWorker
 import kotlinx.coroutines.CoroutineScope
@@ -26,13 +33,15 @@ import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.UUID
 
 class BrakOffRepository(
     private val api: BrakOffApi,
     private val deliveryDao: DeliveryDao,
     private val productStateDao: ProductStateDao,
+    private val commentDao: CommentDao,
     private val preferencesManager: PreferencesManager,
-    private val context: android.content.Context
+    private val context: Context
 ) {
     private val isoFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSZ", Locale.US)
     private val gson = Gson()
@@ -47,8 +56,20 @@ class BrakOffRepository(
         data object InvalidToken : FetchResult()
     }
 
+    sealed class CommentResult {
+        data class Success(val comment: CommentEntity) : CommentResult()
+        data class ValidationError(val message: String) : CommentResult()
+        data class Error(val message: String) : CommentResult()
+    }
+
     val allDeliveryItems: Flow<List<DeliveryItem>> = deliveryDao.getAllItems()
     val allProductStates: Flow<List<LocalProductState>> = productStateDao.getAllStates()
+
+    fun getCommentsForProduct(deliveryId: String, barcode: String): Flow<List<CommentEntity>> =
+        commentDao.getCommentsForProduct(deliveryId, barcode)
+
+    fun getAllCommentsForDelivery(deliveryId: String): Flow<List<CommentEntity>> =
+        commentDao.getAllCommentsForDelivery(deliveryId)
 
     suspend fun getProductState(barcode: String): LocalProductState? =
         productStateDao.getStateByBarcode(barcode)
@@ -93,19 +114,23 @@ class BrakOffRepository(
     }
 
     private fun triggerSync() {
-        val constraints = Constraints.Builder()
-            .setRequiredNetworkType(NetworkType.CONNECTED)
-            .build()
+        try {
+            val constraints = Constraints.Builder()
+                .setRequiredNetworkType(NetworkType.CONNECTED)
+                .build()
 
-        val syncRequest = OneTimeWorkRequestBuilder<SyncWorker>()
-            .setConstraints(constraints)
-            .build()
+            val syncRequest = OneTimeWorkRequestBuilder<SyncWorker>()
+                .setConstraints(constraints)
+                .build()
 
-        WorkManager.getInstance(context).enqueueUniqueWork(
-            "SyncWorker",
-            ExistingWorkPolicy.REPLACE,
-            syncRequest
-        )
+            WorkManager.getInstance(context).enqueueUniqueWork(
+                "SyncWorker",
+                ExistingWorkPolicy.REPLACE,
+                syncRequest
+            )
+        } catch (_: Exception) {
+            // WorkManager may not be initialized in unit tests
+        }
     }
 
     suspend fun fetchActiveDeliveries(): FetchResult {
@@ -170,8 +195,338 @@ class BrakOffRepository(
         deliveryDao.updateDeliveryItems(items)
         mergeDeliveryMetadataIntoLocalState(items)
         saveCurrentDeliverySummary(body)
+
+        // Process comments returned inside items
+        val commentsFromItems = body.items.flatMap { dto ->
+            dto.comments.map { commentDto ->
+                CommentEntity(
+                    commentId = commentDto.commentId,
+                    deliveryId = body.deliveryId,
+                    barcode = commentDto.barcode,
+                    originalBarcode = commentDto.originalBarcode ?: commentDto.barcode,
+                    originalName = commentDto.originalName,
+                    deviceId = commentDto.deviceId,
+                    deviceName = commentDto.deviceName,
+                    text = commentDto.text,
+                    suggestedBarcode = commentDto.suggestedBarcode,
+                    suggestedName = commentDto.suggestedName,
+                    createdAt = commentDto.createdAt,
+                    createdAtMillis = DateUtils.parseIsoToMillis(commentDto.createdAt),
+                    syncStatus = CommentSyncStatus.SYNCED
+                )
+            }
+        }
+        if (commentsFromItems.isNotEmpty()) {
+            commentDao.insertComments(commentsFromItems)
+        }
+
         pullDeviceState(body.deliveryId)
+        fetchCommentsForDelivery(body.deliveryId)
         return FetchResult.Success
+    }
+
+    suspend fun fetchCommentsForDelivery(deliveryId: String? = null): FetchResult {
+        return try {
+            val targetDeliveryId = deliveryId ?: preferencesManager.selectedDeliveryId.first()
+            if (targetDeliveryId.isBlank()) return FetchResult.Success
+
+            val response = api.getDeliveryComments(targetDeliveryId)
+            if (response.isSuccessful) {
+                val dtos = response.body().orEmpty()
+                val entities = dtos.map { commentDto ->
+                    CommentEntity(
+                        commentId = commentDto.commentId,
+                        deliveryId = targetDeliveryId,
+                        barcode = commentDto.barcode,
+                        originalBarcode = commentDto.originalBarcode ?: commentDto.barcode,
+                        originalName = commentDto.originalName,
+                        deviceId = commentDto.deviceId,
+                        deviceName = commentDto.deviceName,
+                        text = commentDto.text,
+                        suggestedBarcode = commentDto.suggestedBarcode,
+                        suggestedName = commentDto.suggestedName,
+                        createdAt = commentDto.createdAt,
+                        createdAtMillis = DateUtils.parseIsoToMillis(commentDto.createdAt),
+                        syncStatus = CommentSyncStatus.SYNCED
+                    )
+                }
+                if (entities.isNotEmpty()) {
+                    commentDao.insertComments(entities)
+                }
+                FetchResult.Success
+            } else {
+                if (response.code() == 401) FetchResult.InvalidToken
+                else FetchResult.Error("Błąd pobierania komentarzy: ${response.code()}")
+            }
+        } catch (e: Exception) {
+            FetchResult.Error(e.message ?: "Błąd połączenia")
+        }
+    }
+
+    suspend fun fetchItemComments(deliveryId: String, barcode: String): FetchResult {
+        return try {
+            if (deliveryId.isBlank() || barcode.isBlank()) return FetchResult.Success
+            val response = api.getItemComments(deliveryId, barcode)
+            if (response.isSuccessful) {
+                val dtos = response.body().orEmpty()
+                val entities = dtos.map { commentDto ->
+                    CommentEntity(
+                        commentId = commentDto.commentId,
+                        deliveryId = deliveryId,
+                        barcode = commentDto.barcode,
+                        originalBarcode = commentDto.originalBarcode ?: commentDto.barcode,
+                        originalName = commentDto.originalName,
+                        deviceId = commentDto.deviceId,
+                        deviceName = commentDto.deviceName,
+                        text = commentDto.text,
+                        suggestedBarcode = commentDto.suggestedBarcode,
+                        suggestedName = commentDto.suggestedName,
+                        createdAt = commentDto.createdAt,
+                        createdAtMillis = DateUtils.parseIsoToMillis(commentDto.createdAt),
+                        syncStatus = CommentSyncStatus.SYNCED
+                    )
+                }
+                if (entities.isNotEmpty()) {
+                    commentDao.insertComments(entities)
+                }
+                FetchResult.Success
+            } else {
+                if (response.code() == 401) FetchResult.InvalidToken
+                else FetchResult.Error("Błąd pobierania komentarzy: ${response.code()}")
+            }
+        } catch (e: Exception) {
+            FetchResult.Error(e.message ?: "Błąd połączenia")
+        }
+    }
+
+    suspend fun addComment(
+        deliveryId: String,
+        barcode: String,
+        text: String,
+        suggestedBarcode: String? = null,
+        suggestedName: String? = null,
+        originalName: String? = null
+    ): CommentResult {
+        val trimmedText = text.trim()
+        if (trimmedText.isEmpty()) {
+            return CommentResult.ValidationError("Treść komentarza nie może być pusta.")
+        }
+        if (trimmedText.length > 2000) {
+            return CommentResult.ValidationError("Treść komentarza nie może przekraczać 2000 znaków.")
+        }
+
+        val trimmedSuggestedBarcode = suggestedBarcode?.trim()?.takeIf { it.isNotEmpty() }
+        if (trimmedSuggestedBarcode != null) {
+            if (trimmedSuggestedBarcode.length > 100) {
+                return CommentResult.ValidationError("Proponowany barcode nie może przekraczać 100 znaków.")
+            }
+            if (!trimmedSuggestedBarcode.matches(Regex("^[0-9]+$"))) {
+                return CommentResult.ValidationError("Proponowany barcode musi składać się wyłącznie z cyfr ASCII.")
+            }
+        }
+
+        val trimmedSuggestedName = suggestedName?.trim()?.takeIf { it.isNotEmpty() }
+        if (trimmedSuggestedName != null && trimmedSuggestedName.length > 500) {
+            return CommentResult.ValidationError("Proponowana nazwa nie może przekraczać 500 znaków.")
+        }
+
+        val currentDeliveryId = if (deliveryId.isNotBlank()) deliveryId else preferencesManager.selectedDeliveryId.first()
+        if (currentDeliveryId.isBlank()) {
+            return CommentResult.Error("Brak wybranej dostawy.")
+        }
+
+        val deviceId = preferencesManager.deviceId.first()
+        val deviceName = preferencesManager.deviceName.first().trim().takeIf { it.isNotEmpty() }
+
+        val commentId = UUID.randomUUID().toString()
+        val nowIso = DateUtils.currentIsoUtcString()
+
+        val comment = CommentEntity(
+            commentId = commentId,
+            deliveryId = currentDeliveryId,
+            barcode = barcode,
+            originalBarcode = barcode,
+            originalName = originalName,
+            deviceId = deviceId,
+            deviceName = deviceName,
+            text = trimmedText,
+            suggestedBarcode = trimmedSuggestedBarcode,
+            suggestedName = trimmedSuggestedName,
+            createdAt = nowIso,
+            createdAtMillis = System.currentTimeMillis(),
+            syncStatus = CommentSyncStatus.PENDING
+        )
+
+        commentDao.insertComment(comment)
+        triggerSync()
+
+        CoroutineScope(Dispatchers.IO).launch {
+            syncPendingComments()
+        }
+
+        return CommentResult.Success(comment)
+    }
+
+    suspend fun syncPendingComments(): FetchResult? {
+        val pendingComments = commentDao.getPendingComments() ?: emptyList()
+        if (pendingComments.isEmpty()) return null
+
+        var result: FetchResult? = null
+
+        for (comment in pendingComments) {
+            // Check if non-list product needs its scan state confirmed on PC first
+            val deliveryItem = deliveryDao.getItemByBarcode(comment.barcode)
+            if (deliveryItem == null) {
+                val localProduct = productStateDao.getStateByBarcode(comment.barcode)
+                if (localProduct != null && localProduct.syncStatus != SyncStatus.SYNCED) {
+                    syncPendingStates()
+                    val refreshedProduct = productStateDao.getStateByBarcode(comment.barcode)
+                    if (refreshedProduct?.syncStatus != SyncStatus.SYNCED) {
+                        // Scan state not synced yet on PC, wait for next attempt
+                        continue
+                    }
+                }
+            }
+
+            val request = ItemCommentRequest(
+                commentId = comment.commentId,
+                deviceId = comment.deviceId,
+                deviceName = comment.deviceName,
+                text = comment.text,
+                suggestedBarcode = comment.suggestedBarcode,
+                suggestedName = comment.suggestedName
+            )
+
+            try {
+                val response = api.postItemComment(comment.deliveryId, comment.barcode, request)
+                if (response.isSuccessful) {
+                    val dto = response.body()
+                    if (dto != null) {
+                        val syncedEntity = comment.copy(
+                            syncStatus = CommentSyncStatus.SYNCED,
+                            createdAt = dto.createdAt,
+                            createdAtMillis = DateUtils.parseIsoToMillis(dto.createdAt),
+                            originalBarcode = dto.originalBarcode ?: comment.originalBarcode,
+                            originalName = dto.originalName ?: comment.originalName,
+                            barcode = dto.barcode,
+                            errorMessage = null,
+                            errorReason = null
+                        )
+                        commentDao.insertComment(syncedEntity)
+                        fetchItemComments(comment.deliveryId, dto.barcode)
+                    }
+                } else {
+                    val code = response.code()
+                    val errorString = response.errorBody()?.string()
+                    val parsedError = parseCommentError(errorString)
+
+                    when (code) {
+                        400 -> {
+                            val msg = parsedError?.message ?: "Błąd walidacji żądania ($code)"
+                            commentDao.insertComment(
+                                comment.copy(
+                                    syncStatus = CommentSyncStatus.FAILED,
+                                    errorMessage = msg
+                                )
+                            )
+                        }
+                        401, 403 -> {
+                            commentDao.insertComment(
+                                comment.copy(
+                                    syncStatus = CommentSyncStatus.FAILED,
+                                    errorMessage = "Błąd autoryzacji"
+                                )
+                            )
+                            result = FetchResult.InvalidToken
+                        }
+                        404 -> {
+                            when (parsedError?.reason) {
+                                "DELIVERY_NOT_ACTIVE" -> {
+                                    commentDao.insertComment(
+                                        comment.copy(
+                                            syncStatus = CommentSyncStatus.DELIVERY_NOT_ACTIVE,
+                                            errorReason = "DELIVERY_NOT_ACTIVE",
+                                            errorMessage = "Dostawa jest nieaktywna lub zamknięta."
+                                        )
+                                    )
+                                }
+                                "ITEM_NOT_FOUND" -> {
+                                    commentDao.insertComment(
+                                        comment.copy(
+                                            syncStatus = CommentSyncStatus.ITEM_NOT_FOUND,
+                                            errorReason = "ITEM_NOT_FOUND",
+                                            errorMessage = "Pozycja nie istnieje w dostawie na PC."
+                                        )
+                                    )
+                                }
+                                else -> {
+                                    commentDao.insertComment(
+                                        comment.copy(
+                                            syncStatus = CommentSyncStatus.PC_UPDATE_REQUIRED,
+                                            errorReason = "PC_UPDATE_REQUIRED",
+                                            errorMessage = "Wymagana aktualizacja BrakOffPC"
+                                        )
+                                    )
+                                }
+                            }
+                        }
+                        409 -> {
+                            if (parsedError?.reason == "COMMENT_ID_CONFLICT") {
+                                commentDao.insertComment(
+                                    comment.copy(
+                                        syncStatus = CommentSyncStatus.COMMENT_ID_CONFLICT,
+                                        errorReason = "COMMENT_ID_CONFLICT",
+                                        errorMessage = "Konflikt ID komentarza na serwerze."
+                                    )
+                                )
+                            } else {
+                                commentDao.insertComment(
+                                    comment.copy(
+                                        syncStatus = CommentSyncStatus.FAILED,
+                                        errorMessage = "Konflikt na serwerze ($code)"
+                                    )
+                                )
+                            }
+                        }
+                        else -> {
+                            if (code == 405 || code == 501) {
+                                commentDao.insertComment(
+                                    comment.copy(
+                                        syncStatus = CommentSyncStatus.PC_UPDATE_REQUIRED,
+                                        errorReason = "PC_UPDATE_REQUIRED",
+                                        errorMessage = "Wymagana aktualizacja BrakOffPC"
+                                    )
+                                )
+                            } else {
+                                commentDao.insertComment(
+                                    comment.copy(
+                                        syncStatus = CommentSyncStatus.FAILED,
+                                        errorMessage = "Błąd serwera: $code"
+                                    )
+                                )
+                            }
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                commentDao.insertComment(
+                    comment.copy(
+                        syncStatus = CommentSyncStatus.FAILED,
+                        errorMessage = e.message ?: "Błąd połączenia"
+                    )
+                )
+            }
+        }
+
+        return result
+    }
+
+    private fun parseCommentError(errorBody: String?): CommentErrorResponse? {
+        return try {
+            if (errorBody.isNullOrBlank()) null else gson.fromJson(errorBody, CommentErrorResponse::class.java)
+        } catch (_: Exception) {
+            null
+        }
     }
 
     private suspend fun mergeDeliveryMetadataIntoLocalState(items: List<DeliveryItem>) {
@@ -354,6 +709,7 @@ class BrakOffRepository(
     suspend fun clearLocalData() {
         deliveryDao.clearAll()
         productStateDao.clearAll()
+        commentDao.clearAll()
         preferencesManager.clearCurrentDeliverySummary()
     }
 

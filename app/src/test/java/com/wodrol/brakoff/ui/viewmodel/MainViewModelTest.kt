@@ -1,5 +1,6 @@
 package com.wodrol.brakoff.ui.viewmodel
 
+import com.wodrol.brakoff.data.local.entity.CommentEntity
 import com.wodrol.brakoff.data.local.entity.DeliveryItem
 import com.wodrol.brakoff.data.local.entity.LocalProductState
 import com.wodrol.brakoff.data.local.entity.SyncStatus
@@ -7,8 +8,8 @@ import com.wodrol.brakoff.data.repository.BrakOffRepository
 import com.wodrol.brakoff.util.PreferencesManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -21,6 +22,8 @@ import org.junit.Test
 import org.mockito.Mock
 import org.mockito.Mockito.`when`
 import org.mockito.MockitoAnnotations
+import org.mockito.kotlin.eq
+import org.mockito.kotlin.verify
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class MainViewModelTest {
@@ -116,5 +119,45 @@ class MainViewModelTest {
         assertEquals("999", result[0].barcode)
         assertEquals("111", result[1].barcode)
         job.cancel()
+    }
+
+    @Test
+    fun `addComment delegates to repository and sets action result`() = runTest {
+        val selJob = backgroundScope.launch { viewModel.selectedDeliveryId.collect { } }
+        advanceUntilIdle()
+
+        val mockComment = CommentEntity(
+            commentId = "c1",
+            deliveryId = "del1",
+            barcode = "00123",
+            deviceId = "test-id",
+            text = "Komentarz testowy",
+            createdAt = "2026-10-01T09:15:00Z"
+        )
+        `when`(
+            repository.addComment(
+                deliveryId = eq("del1"),
+                barcode = eq("00123"),
+                text = eq("Komentarz testowy"),
+                suggestedBarcode = eq("00999"),
+                suggestedName = eq("Śruba"),
+                originalName = eq("Śruba z PDF")
+            )
+        ).thenReturn(BrakOffRepository.CommentResult.Success(mockComment))
+
+        viewModel.addComment(
+            barcode = "00123",
+            text = "Komentarz testowy",
+            suggestedBarcode = "00999",
+            suggestedName = "Śruba",
+            originalName = "Śruba z PDF"
+        )
+
+        advanceUntilIdle()
+
+        val actionResult = viewModel.commentActionResult.value
+        assertEquals(BrakOffRepository.CommentResult.Success(mockComment), actionResult)
+        verify(repository).fetchItemComments("del1", "00123")
+        selJob.cancel()
     }
 }

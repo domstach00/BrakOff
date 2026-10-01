@@ -2,6 +2,7 @@ package com.wodrol.brakoff.ui.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.wodrol.brakoff.data.local.entity.CommentEntity
 import com.wodrol.brakoff.data.local.entity.DeliveryItem
 import com.wodrol.brakoff.data.local.entity.LocalProductState
 import com.wodrol.brakoff.data.local.entity.SyncStatus
@@ -17,6 +18,9 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.flow.Flow
 import kotlin.time.Duration.Companion.seconds
 
 class MainViewModel(
@@ -594,6 +598,68 @@ class MainViewModel(
                 results.add(VerificationResult(barcode, local?.quantity, server?.quantity, status, unit))
             }
             _verificationResults.value = results
+        }
+    }
+
+    fun getCommentsForProduct(barcode: String): Flow<List<CommentEntity>> {
+        val delId = selectedDeliveryId.value
+        return repository.getCommentsForProduct(delId, barcode)
+    }
+
+    private var commentPollingJob: Job? = null
+
+    fun startCommentsPolling(barcode: String) {
+        commentPollingJob?.cancel()
+        commentPollingJob = viewModelScope.launch {
+            while (isActive) {
+                val delId = selectedDeliveryId.value
+                if (delId.isNotBlank() && barcode.isNotBlank()) {
+                    repository.fetchItemComments(delId, barcode)
+                }
+                delay(5.seconds)
+            }
+        }
+    }
+
+    fun stopCommentsPolling() {
+        commentPollingJob?.cancel()
+        commentPollingJob = null
+    }
+
+    private val _commentActionResult = MutableStateFlow<BrakOffRepository.CommentResult?>(null)
+    val commentActionResult: StateFlow<BrakOffRepository.CommentResult?> = _commentActionResult.asStateFlow()
+
+    fun clearCommentActionResult() {
+        _commentActionResult.value = null
+    }
+
+    fun addComment(
+        barcode: String,
+        text: String,
+        suggestedBarcode: String? = null,
+        suggestedName: String? = null,
+        originalName: String? = null
+    ) {
+        viewModelScope.launch {
+            val delId = selectedDeliveryId.value.ifBlank { preferencesManager.selectedDeliveryId.first() }
+            val result = repository.addComment(
+                deliveryId = delId,
+                barcode = barcode,
+                text = text,
+                suggestedBarcode = suggestedBarcode,
+                suggestedName = suggestedName,
+                originalName = originalName
+            )
+            _commentActionResult.value = result
+            if (result is BrakOffRepository.CommentResult.Success) {
+                repository.fetchItemComments(delId, barcode)
+            }
+        }
+    }
+
+    fun retryPendingComments() {
+        viewModelScope.launch {
+            repository.syncPendingComments()
         }
     }
 }

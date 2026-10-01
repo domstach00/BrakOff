@@ -15,5 +15,6 @@ data class DeliveryItemDto(
     val name: String,
     val expectedQty: Int,
     val scannedQty: Int = 0,
-    val unit: String? = "szt"
+    val unit: String? = "szt",
+    val comments: List<ItemCommentDto> = emptyList()
 )

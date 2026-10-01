@@ -5,6 +5,8 @@ import com.wodrol.brakoff.data.remote.dto.DeliveryResponse
 import com.wodrol.brakoff.data.remote.dto.DeviceStateRequest
 import com.wodrol.brakoff.data.remote.dto.DeviceStateResponse
 import com.wodrol.brakoff.data.remote.dto.HealthResponse
+import com.wodrol.brakoff.data.remote.dto.ItemCommentDto
+import com.wodrol.brakoff.data.remote.dto.ItemCommentRequest
 import retrofit2.Response
 import retrofit2.http.*
 
@@ -32,4 +34,22 @@ interface BrakOffApi {
 
     @GET("api/delivery/current")
     suspend fun getCurrentDelivery(): Response<DeliveryResponse>
+
+    @GET("api/deliveries/{deliveryId}/items/{barcode}/comments")
+    suspend fun getItemComments(
+        @Path("deliveryId") deliveryId: String,
+        @Path("barcode") barcode: String
+    ): Response<List<ItemCommentDto>>
+
+    @GET("api/deliveries/{deliveryId}/comments")
+    suspend fun getDeliveryComments(
+        @Path("deliveryId") deliveryId: String
+    ): Response<List<ItemCommentDto>>
+
+    @POST("api/deliveries/{deliveryId}/items/{barcode}/comments")
+    suspend fun postItemComment(
+        @Path("deliveryId") deliveryId: String,
+        @Path("barcode") barcode: String,
+        @Body request: ItemCommentRequest
+    ): Response<ItemCommentDto>
 }

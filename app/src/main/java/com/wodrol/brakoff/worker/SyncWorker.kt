@@ -16,6 +16,7 @@ class SyncWorker(
     override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
         try {
             repository.syncPendingStates()
+            repository.syncPendingComments()
             Result.success()
         } catch (e: Exception) {
             if (runAttemptCount < 3) {
