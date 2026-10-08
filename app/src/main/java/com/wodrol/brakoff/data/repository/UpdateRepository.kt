@@ -23,7 +23,7 @@ class UpdateRepository(
         data class Error(val message: String) : CheckResult()
     }
 
-    suspend fun checkForUpdate(installedVersionCode: Long): CheckResult = withContext(Dispatchers.IO) {
+    suspend fun checkForUpdate(installedVersionName: String, installedVersionCode: Long): CheckResult = withContext(Dispatchers.IO) {
         try {
             val response = gitHubApiService.getLatestRelease()
             if (!response.isSuccessful) {
@@ -50,7 +50,10 @@ class UpdateRepository(
                 createManifestFromTag(release, apkAsset.name)
             }
 
-            if (manifest.versionCode > installedVersionCode) {
+            // Używamy czystego porównania wersji semantycznych (np. "1.0.5" vs "1.0.5")
+            val isNewer = isVersionGreater(manifest.versionName, installedVersionName)
+
+            if (isNewer) {
                 CheckResult.UpdateAvailable(
                     manifest = manifest,
                     apkAsset = apkAsset,
@@ -106,6 +109,20 @@ class UpdateRepository(
         }
     }
 
+    fun isVersionGreater(remoteVersion: String, installedVersion: String): Boolean {
+        val remoteParts = remoteVersion.removePrefix("v").removePrefix("V").trim().split("+")[0].split("-")[0].split(".").mapNotNull { it.toIntOrNull() }
+        val installedParts = installedVersion.removePrefix("v").removePrefix("V").trim().split("+")[0].split("-")[0].split(".").mapNotNull { it.toIntOrNull() }
+
+        val maxLen = maxOf(remoteParts.size, installedParts.size)
+        for (i in 0 until maxLen) {
+            val r = remoteParts.getOrNull(i) ?: 0
+            val inst = installedParts.getOrNull(i) ?: 0
+            if (r > inst) return true
+            if (r < inst) return false
+        }
+        return false
+    }
+
     private fun createManifestFromTag(release: GitHubReleaseDto, apkName: String): UpdateManifestDto {
         val cleanTag = release.tagName.removePrefix("v").removePrefix("V").trim()
         val versionCode = parseVersionCodeFromTag(release.tagName)
@@ -121,17 +138,14 @@ class UpdateRepository(
     private fun parseVersionCodeFromTag(tagName: String): Int {
         val clean = tagName.removePrefix("v").removePrefix("V").trim()
         
-        // 1. Sprawdź czy to czysta liczba (np. "4", "5")
         clean.toIntOrNull()?.let { return it }
         
-        // 2. Sprawdź czy jest suffix np. "1.0.4+4"
         val plusIndex = clean.indexOf('+')
         if (plusIndex != -1) {
             val buildNum = clean.substring(plusIndex + 1).toIntOrNull()
             if (buildNum != null) return buildNum
         }
         
-        // 3. Automatyczne parsowanie semver (np. "1.0.4" -> 1 * 10000 + 0 * 100 + 4 = 10004)
         val versionPart = if (plusIndex != -1) clean.substring(0, plusIndex) else clean
         val parts = versionPart.split(Regex("[^0-9]+"))
         val major = parts.getOrNull(0)?.toIntOrNull() ?: 0

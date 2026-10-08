@@ -71,8 +71,9 @@ class MainViewModel(
 
         viewModelScope.launch {
             _updateState.value = UpdateState.Checking
+            val installedVersionName = BuildConfig.VERSION_NAME
             val installedVersionCode = BuildConfig.VERSION_CODE.toLong()
-            when (val result = updateRepository.checkForUpdate(installedVersionCode)) {
+            when (val result = updateRepository.checkForUpdate(installedVersionName, installedVersionCode)) {
                 is UpdateRepository.CheckResult.UpdateAvailable -> {
                     _updateState.value = UpdateState.UpdateAvailable(
                         manifest = result.manifest,
