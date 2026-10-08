@@ -8,6 +8,7 @@ import androidx.compose.runtime.Composable
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.wodrol.brakoff.ui.screens.ActiveDeliveriesScreen
 import com.wodrol.brakoff.ui.screens.HomeScreen
 import com.wodrol.brakoff.ui.screens.ProductDetailsScreen
 import com.wodrol.brakoff.ui.screens.QrConfigScannerScreen
@@ -56,7 +57,14 @@ fun BrakOffNavigation(viewModel: MainViewModel) {
                 onScanClick = { navController.navigate("scanner") },
                 onVerifyClick = { navController.navigate("verification") },
                 onSettingsClick = { navController.navigate("settings") },
+                onDeliveriesClick = { navController.navigate("deliveries") },
                 onNavigateToDetails = { barcode -> navController.navigate("details/$barcode") }
+            )
+        }
+        composable("deliveries") {
+            ActiveDeliveriesScreen(
+                viewModel = viewModel,
+                onBack = { navController.popBackStack() }
             )
         }
         composable("scanner") {
@@ -87,7 +95,8 @@ fun BrakOffNavigation(viewModel: MainViewModel) {
             SettingsScreen(
                 viewModel = viewModel,
                 onBack = { navController.popBackStack() },
-                onOpenQrScanner = { navController.navigate("settings/qr-scanner") }
+                onOpenQrScanner = { navController.navigate("settings/qr-scanner") },
+                onNavigateToDeliveries = { navController.navigate("deliveries") }
             )
         }
         composable("settings/qr-scanner") {

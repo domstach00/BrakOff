@@ -14,6 +14,7 @@ import com.wodrol.brakoff.data.repository.BrakOffRepository
 import com.wodrol.brakoff.data.repository.UpdateRepository
 import com.wodrol.brakoff.util.PreferencesManager
 import com.wodrol.brakoff.util.UpdateManager
+import com.wodrol.brakoff.util.DateUtils
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -413,7 +414,7 @@ class MainViewModel(
                         result is BrakOffRepository.FetchResult.ActiveDeliveriesLoaded) {
                         _fetchResult.value = result
                         if (result is BrakOffRepository.FetchResult.ActiveDeliveriesLoaded) {
-                            _activeDeliveries.value = result.deliveries
+                            _activeDeliveries.value = result.deliveries.sortedByDescending { DateUtils.parseIsoToMillis(it.activatedAt) }
                         }
                     }
                     
@@ -492,7 +493,7 @@ class MainViewModel(
         viewModelScope.launch {
             val result = repository.fetchActiveDeliveries()
             if (result is BrakOffRepository.FetchResult.ActiveDeliveriesLoaded) {
-                _activeDeliveries.value = result.deliveries
+                _activeDeliveries.value = result.deliveries.sortedByDescending { DateUtils.parseIsoToMillis(it.activatedAt) }
                 if (result.deliveries.size == 1 && selectedDeliveryId.value.isBlank()) {
                     switchDelivery(result.deliveries.first().deliveryId)
                     return@launch

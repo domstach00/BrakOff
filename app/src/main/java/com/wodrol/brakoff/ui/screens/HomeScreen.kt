@@ -29,6 +29,7 @@ fun HomeScreen(
     onScanClick: () -> Unit,
     onVerifyClick: () -> Unit,
     onSettingsClick: () -> Unit,
+    onDeliveriesClick: () -> Unit,
     onNavigateToDetails: (String) -> Unit
 ) {
     val displayItems by viewModel.homeDisplayList.collectAsState()
@@ -231,6 +232,11 @@ fun HomeScreen(
                         Text(text = deviceName ?: "Wczytywanie...", style = MaterialTheme.typography.labelSmall)
                     }
                 },
+                navigationIcon = {
+                    IconButton(onClick = onDeliveriesClick) {
+                        Icon(Icons.Default.LocalShipping, contentDescription = "Dostawy")
+                    }
+                },
                 actions = {
                     IconButton(onClick = { viewModel.fetchDelivery() }) {
                         Icon(Icons.Default.Refresh, contentDescription = "Odśwież")
@@ -242,7 +248,8 @@ fun HomeScreen(
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
                     containerColor = MaterialTheme.colorScheme.primary,
                     titleContentColor = MaterialTheme.colorScheme.onPrimary,
-                    actionIconContentColor = MaterialTheme.colorScheme.onPrimary
+                    actionIconContentColor = MaterialTheme.colorScheme.onPrimary,
+                    navigationIconContentColor = MaterialTheme.colorScheme.onPrimary
                 )
             )
         },

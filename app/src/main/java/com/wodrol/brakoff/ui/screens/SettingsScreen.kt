@@ -9,6 +9,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.LocalShipping
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.filled.Warning
@@ -29,7 +30,8 @@ import kotlinx.coroutines.launch
 fun SettingsScreen(
     viewModel: MainViewModel,
     onBack: () -> Unit,
-    onOpenQrScanner: () -> Unit
+    onOpenQrScanner: () -> Unit,
+    onNavigateToDeliveries: () -> Unit
 ) {
     val serverUrl by viewModel.serverUrl.collectAsState()
     val deviceName by viewModel.deviceName.collectAsState()
@@ -41,8 +43,6 @@ fun SettingsScreen(
     val scanButtonLeft by viewModel.scanButtonLeft.collectAsState()
     val autoScanEnabled by viewModel.autoScanEnabled.collectAsState()
     val isScanningNetwork by viewModel.isScanningNetwork.collectAsState()
-    val selectedDeliveryId by viewModel.selectedDeliveryId.collectAsState()
-    val activeDeliveries by viewModel.activeDeliveries.collectAsState()
 
     var urlInput by remember { mutableStateOf(serverUrl) }
     var nameInput by remember { mutableStateOf(deviceName ?: "") }
@@ -287,39 +287,39 @@ fun SettingsScreen(
                 Spacer(modifier = Modifier.height(24.dp))
 
                 Text("Aktywna dostawa", style = MaterialTheme.typography.titleMedium)
-                if (activeDeliveries.isNotEmpty()) {
-                    activeDeliveries.forEach { delivery ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            RadioButton(
-                                selected = delivery.deliveryId == selectedDeliveryId,
-                                onClick = { viewModel.switchDelivery(delivery.deliveryId) }
+                Spacer(modifier = Modifier.height(8.dp))
+                ElevatedCard(
+                    onClick = onNavigateToDeliveries,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.elevatedCardColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer
+                    )
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Default.LocalShipping,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text(
+                                "Przejdź do dostaw",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
                             )
-                            Column(modifier = Modifier.clickable { viewModel.switchDelivery(delivery.deliveryId) }) {
-                                Text(delivery.uiTitle(), style = MaterialTheme.typography.bodyLarge)
-                                delivery.uiSubtitle()?.let {
-                                    Text(it, style = MaterialTheme.typography.bodySmall)
-                                }
-                                Text("ID: ${delivery.deliveryId}", style = MaterialTheme.typography.labelSmall)
-                            }
+                            Text(
+                                "Zarządzaj aktywnymi dostawami i przełączaj się między nimi.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
                         }
                     }
-                } else {
-                    Text("Brak aktywnych dostaw", style = MaterialTheme.typography.bodySmall)
-                }
-                
-                Button(
-                    onClick = { viewModel.fetchActiveDeliveries() },
-                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
-                ) {
-                    Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(8.dp))
-                    Text("Odśwież listę dostaw")
                 }
 
                 Spacer(modifier = Modifier.height(24.dp))
