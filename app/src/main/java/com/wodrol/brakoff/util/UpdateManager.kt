@@ -27,7 +27,8 @@ class UpdateManager(private val context: Context) {
         apkFile: File,
         expectedManifest: UpdateManifestDto,
         expectedDigest: String?,
-        installedVersionCode: Long
+        installedVersionCode: Long,
+        installedVersionName: String = ""
     ): ValidationResult {
         if (!apkFile.exists() || apkFile.length() <= 0) {
             return ValidationResult.Invalid("Plik APK nie istnieje lub jest pusty")
@@ -52,6 +53,10 @@ class UpdateManager(private val context: Context) {
             return ValidationResult.Invalid("Nieprawidłowa nazwa pakietu: ${packageInfo.packageName} (oczekiwana: com.wodrol.brakoff)")
         }
 
+        if (packageInfo.versionName != expectedManifest.versionName) {
+            return ValidationResult.Invalid("Wersja versionName w APK (${packageInfo.versionName}) nie zgadza się z wydaniem (${expectedManifest.versionName})")
+        }
+
         val apkVersionCode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             packageInfo.longVersionCode
         } else {
@@ -59,16 +64,14 @@ class UpdateManager(private val context: Context) {
             packageInfo.versionCode.toLong()
         }
 
-        if (apkVersionCode <= installedVersionCode) {
-            return ValidationResult.Invalid("Wersja w pobranym APK ($apkVersionCode) nie jest nowsza niż zainstalowana ($installedVersionCode)")
+        val isNewer = if (installedVersionName.isNotBlank()) {
+            isVersionGreater(packageInfo.versionName ?: "", installedVersionName) || (apkVersionCode > installedVersionCode)
+        } else {
+            apkVersionCode > installedVersionCode
         }
 
-        if (apkVersionCode != expectedManifest.versionCode.toLong()) {
-            return ValidationResult.Invalid("Wersja versionCode w APK ($apkVersionCode) nie zgadza się z manifestem update.json (${expectedManifest.versionCode})")
-        }
-
-        if (packageInfo.versionName != expectedManifest.versionName) {
-            return ValidationResult.Invalid("Wersja versionName w APK (${packageInfo.versionName}) nie zgadza się z manifestem update.json (${expectedManifest.versionName})")
+        if (!isNewer) {
+            return ValidationResult.Invalid("Wersja w pobranym APK (${packageInfo.versionName}) nie jest nowsza niż zainstalowana")
         }
 
         return ValidationResult.Valid
@@ -87,6 +90,11 @@ class UpdateManager(private val context: Context) {
                 ).apply {
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 }
+                try {
+                    context.startActivity(permissionIntent)
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
                 return InstallResult.PermissionRequired(permissionIntent)
             }
         }
@@ -98,8 +106,7 @@ class UpdateManager(private val context: Context) {
                 apkFile
             )
 
-            @Suppress("DEPRECATION")
-            val installIntent = Intent(Intent.ACTION_INSTALL_PACKAGE).apply {
+            val installIntent = Intent(Intent.ACTION_VIEW).apply {
                 setDataAndType(apkUri, "application/vnd.android.package-archive")
                 flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK
             }
@@ -122,6 +129,20 @@ class UpdateManager(private val context: Context) {
 
     fun getApkFile(): File {
         return File(getUpdatesDir(), "BrakOff.apk")
+    }
+
+    private fun isVersionGreater(remoteVersion: String, installedVersion: String): Boolean {
+        val remoteParts = remoteVersion.removePrefix("v").removePrefix("V").trim().split("+")[0].split("-")[0].split(".").mapNotNull { it.toIntOrNull() }
+        val installedParts = installedVersion.removePrefix("v").removePrefix("V").trim().split("+")[0].split("-")[0].split(".").mapNotNull { it.toIntOrNull() }
+
+        val maxLen = maxOf(remoteParts.size, installedParts.size)
+        for (i in 0 until maxLen) {
+            val r = remoteParts.getOrNull(i) ?: 0
+            val inst = installedParts.getOrNull(i) ?: 0
+            if (r > inst) return true
+            if (r < inst) return false
+        }
+        return false
     }
 
     private fun calculateSha256(file: File): String? {

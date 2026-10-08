@@ -113,12 +113,14 @@ class MainViewModel(
                 return@launch
             }
 
+            val installedVersionName = BuildConfig.VERSION_NAME
             val installedVersionCode = BuildConfig.VERSION_CODE.toLong()
             val validation = updateManager.validateApk(
                 apkFile = apkFile,
                 expectedManifest = currentState.manifest,
                 expectedDigest = currentState.apkAsset.digest,
-                installedVersionCode = installedVersionCode
+                installedVersionCode = installedVersionCode,
+                installedVersionName = installedVersionName
             )
 
             when (validation) {
@@ -145,11 +147,7 @@ class MainViewModel(
                 // Instalator został uruchomiony pomyślnie
             }
             is UpdateManager.InstallResult.PermissionRequired -> {
-                try {
-                    result.intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-                } catch (_: Exception) {
-                    _updateState.value = UpdateState.Error("Brak zezwolenia na instalowanie aplikacji z nieznanych źródeł")
-                }
+                _updateState.value = UpdateState.Error("Włącz zezwolenie na instalowanie aplikacji w ustawieniach systemu")
             }
             is UpdateManager.InstallResult.Error -> {
                 _updateState.value = UpdateState.Error(result.message)

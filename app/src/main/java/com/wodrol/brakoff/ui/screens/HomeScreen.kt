@@ -359,6 +359,37 @@ fun HomeScreen(
                         )
                     }
                 }
+            } else if (updateState is com.wodrol.brakoff.ui.viewmodel.UpdateState.ReadyToInstall) {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = "Gotowe do instalacji",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onTertiaryContainer,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Button(
+                            onClick = { viewModel.installApk() },
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+                        ) {
+                            Text("Instaluj", maxLines = 1, softWrap = false)
+                        }
+                    }
+                }
             } else if (updateState is com.wodrol.brakoff.ui.viewmodel.UpdateState.Error) {
                 val errorMsg = (updateState as com.wodrol.brakoff.ui.viewmodel.UpdateState.Error).message
                 Card(
