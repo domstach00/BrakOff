@@ -2,12 +2,18 @@ package com.wodrol.brakoff.ui.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.wodrol.brakoff.BuildConfig
 import com.wodrol.brakoff.data.local.entity.CommentEntity
 import com.wodrol.brakoff.data.local.entity.DeliveryItem
 import com.wodrol.brakoff.data.local.entity.LocalProductState
 import com.wodrol.brakoff.data.local.entity.SyncStatus
+import com.wodrol.brakoff.data.remote.dto.GitHubAssetDto
+import com.wodrol.brakoff.data.remote.dto.GitHubReleaseDto
+import com.wodrol.brakoff.data.remote.dto.UpdateManifestDto
 import com.wodrol.brakoff.data.repository.BrakOffRepository
+import com.wodrol.brakoff.data.repository.UpdateRepository
 import com.wodrol.brakoff.util.PreferencesManager
+import com.wodrol.brakoff.util.UpdateManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -21,13 +27,134 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.flow.Flow
+import java.io.File
 import kotlin.time.Duration.Companion.seconds
+
+sealed class UpdateState {
+    data object Idle : UpdateState()
+    data object Checking : UpdateState()
+    data class UpdateAvailable(
+        val manifest: UpdateManifestDto,
+        val apkAsset: GitHubAssetDto,
+        val release: GitHubReleaseDto
+    ) : UpdateState()
+    data object NoUpdate : UpdateState()
+    data class Downloading(val progress: Float) : UpdateState()
+    data class ReadyToInstall(val apkFile: File) : UpdateState()
+    data class Error(val message: String) : UpdateState()
+}
 
 class MainViewModel(
     private val repository: BrakOffRepository,
     private val preferencesManager: PreferencesManager,
+    private val updateRepository: UpdateRepository? = null,
+    private val updateManager: UpdateManager? = null,
     private val startBackgroundJobs: Boolean = true
 ) : ViewModel() {
+
+    private val _updateState = MutableStateFlow<UpdateState>(UpdateState.Idle)
+    val updateState: StateFlow<UpdateState> = _updateState.asStateFlow()
+
+    private val _isUpdateBannerDismissed = MutableStateFlow(false)
+    val isUpdateBannerDismissed: StateFlow<Boolean> = _isUpdateBannerDismissed.asStateFlow()
+
+    fun dismissUpdateBanner() {
+        _isUpdateBannerDismissed.value = true
+    }
+
+    fun resetUpdateState() {
+        _updateState.value = UpdateState.Idle
+    }
+
+    fun checkForUpdates(manual: Boolean = false) {
+        if (updateRepository == null) return
+
+        viewModelScope.launch {
+            _updateState.value = UpdateState.Checking
+            val installedVersionCode = BuildConfig.VERSION_CODE.toLong()
+            when (val result = updateRepository.checkForUpdate(installedVersionCode)) {
+                is UpdateRepository.CheckResult.UpdateAvailable -> {
+                    _updateState.value = UpdateState.UpdateAvailable(
+                        manifest = result.manifest,
+                        apkAsset = result.apkAsset,
+                        release = result.release
+                    )
+                }
+                is UpdateRepository.CheckResult.NoUpdate -> {
+                    _updateState.value = UpdateState.NoUpdate
+                }
+                is UpdateRepository.CheckResult.Error -> {
+                    _updateState.value = UpdateState.Error(result.message)
+                }
+            }
+        }
+    }
+
+    fun downloadAndInstallUpdate() {
+        val currentState = _updateState.value
+        if (currentState !is UpdateState.UpdateAvailable || updateRepository == null || updateManager == null) {
+            return
+        }
+
+        viewModelScope.launch {
+            val apkFile = updateManager.getApkFile()
+            _updateState.value = UpdateState.Downloading(0f)
+
+            val success = updateRepository.downloadApkFile(
+                downloadUrl = currentState.apkAsset.downloadUrl,
+                destinationFile = apkFile
+            ) { progress ->
+                _updateState.value = UpdateState.Downloading(progress)
+            }
+
+            if (!success) {
+                _updateState.value = UpdateState.Error("Błąd podczas pobierania pliku APK")
+                return@launch
+            }
+
+            val installedVersionCode = BuildConfig.VERSION_CODE.toLong()
+            val validation = updateManager.validateApk(
+                apkFile = apkFile,
+                expectedManifest = currentState.manifest,
+                expectedDigest = currentState.apkAsset.digest,
+                installedVersionCode = installedVersionCode
+            )
+
+            when (validation) {
+                is UpdateManager.ValidationResult.Valid -> {
+                    _updateState.value = UpdateState.ReadyToInstall(apkFile)
+                    installApk()
+                }
+                is UpdateManager.ValidationResult.Invalid -> {
+                    apkFile.delete()
+                    _updateState.value = UpdateState.Error("Walidacja pliku APK nie powiodła się: ${validation.reason}")
+                }
+            }
+        }
+    }
+
+    fun installApk() {
+        val currentState = _updateState.value
+        if (currentState !is UpdateState.ReadyToInstall || updateManager == null) {
+            return
+        }
+
+        when (val result = updateManager.installApk(currentState.apkFile)) {
+            is UpdateManager.InstallResult.Launched -> {
+                // Instalator został uruchomiony pomyślnie
+            }
+            is UpdateManager.InstallResult.PermissionRequired -> {
+                try {
+                    result.intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                } catch (_: Exception) {
+                    _updateState.value = UpdateState.Error("Brak zezwolenia na instalowanie aplikacji z nieznanych źródeł")
+                }
+            }
+            is UpdateManager.InstallResult.Error -> {
+                _updateState.value = UpdateState.Error(result.message)
+            }
+        }
+    }
 
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
@@ -195,6 +322,7 @@ class MainViewModel(
         if (startBackgroundJobs) {
             startAutoSync()
             startConnectionMonitor()
+            checkForUpdates(manual = false)
         }
     }
 

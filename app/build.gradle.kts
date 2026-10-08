@@ -13,8 +13,8 @@ android {
         applicationId = "com.wodrol.brakoff"
         minSdk = 30
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0.3"
+        versionCode = 3
+        versionName = "1.0.5"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -37,6 +37,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 

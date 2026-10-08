@@ -24,7 +24,12 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         
         val app = application as BrakOffApp
-        viewModel = MainViewModel(app.repository, app.preferencesManager)
+        viewModel = MainViewModel(
+            repository = app.repository,
+            preferencesManager = app.preferencesManager,
+            updateRepository = app.updateRepository,
+            updateManager = app.updateManager
+        )
         
         enableEdgeToEdge()
         setContent {

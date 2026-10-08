@@ -257,6 +257,16 @@ fun HomeScreen(
         },
         floatingActionButtonPosition = if (scanButtonLeft) FabPosition.Start else FabPosition.End
     ) { padding ->
+        val updateState by viewModel.updateState.collectAsState()
+        val isBannerDismissed by viewModel.isUpdateBannerDismissed.collectAsState()
+
+        LaunchedEffect(updateState) {
+            if (updateState is com.wodrol.brakoff.ui.viewmodel.UpdateState.Error) {
+                val errorMsg = (updateState as com.wodrol.brakoff.ui.viewmodel.UpdateState.Error).message
+                snackbarHostState.showSnackbar("Błąd aktualizacji: $errorMsg")
+            }
+        }
+
         Column(
             modifier = Modifier
                 .padding(padding)
@@ -270,6 +280,118 @@ fun HomeScreen(
                     errorText = connectionError,
                     onStopScan = { viewModel.stopNetworkScan() }
                 )
+            }
+
+            if (updateState is com.wodrol.brakoff.ui.viewmodel.UpdateState.UpdateAvailable && !isBannerDismissed) {
+                val availableState = updateState as com.wodrol.brakoff.ui.viewmodel.UpdateState.UpdateAvailable
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Dostępna nowa wersja: ${availableState.manifest.versionName}",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                            if (!availableState.manifest.releaseNotes.isNullOrBlank()) {
+                                Text(
+                                    text = availableState.manifest.releaseNotes,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Column(horizontalAlignment = Alignment.End) {
+                            Button(
+                                onClick = { viewModel.downloadAndInstallUpdate() },
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                            ) {
+                                Text("Pobierz")
+                            }
+                            TextButton(onClick = { viewModel.dismissUpdateBanner() }) {
+                                Text("Pomiń", style = MaterialTheme.typography.labelSmall)
+                            }
+                        }
+                    }
+                }
+            } else if (updateState is com.wodrol.brakoff.ui.viewmodel.UpdateState.Downloading) {
+                val progress = (updateState as com.wodrol.brakoff.ui.viewmodel.UpdateState.Downloading).progress
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Pobieranie aktualizacji...",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = "${(progress * 100).toInt()}%",
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        LinearProgressIndicator(
+                            progress = { progress },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                }
+            } else if (updateState is com.wodrol.brakoff.ui.viewmodel.UpdateState.Error) {
+                val errorMsg = (updateState as com.wodrol.brakoff.ui.viewmodel.UpdateState.Error).message
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Błąd aktualizacji",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onErrorContainer
+                            )
+                            Text(
+                                text = errorMsg,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onErrorContainer
+                            )
+                        }
+                        TextButton(onClick = { viewModel.resetUpdateState() }) {
+                            Text("OK", color = MaterialTheme.colorScheme.onErrorContainer)
+                        }
+                    }
+                }
             }
 
             // Search and Verification Row

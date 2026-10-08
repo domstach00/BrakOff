@@ -4,8 +4,12 @@ import android.app.Application
 import androidx.room.Room
 import com.wodrol.brakoff.data.local.AppDatabase
 import com.wodrol.brakoff.data.remote.BrakOffApi
+import com.wodrol.brakoff.data.remote.GitHubApiService
 import com.wodrol.brakoff.data.repository.BrakOffRepository
+import com.wodrol.brakoff.data.repository.UpdateRepository
 import com.wodrol.brakoff.util.PreferencesManager
+import com.wodrol.brakoff.util.UpdateManager
+import kotlinx.coroutines.DelicateCoroutinesApi
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient
@@ -23,6 +27,8 @@ class BrakOffApp : Application() {
     lateinit var database: AppDatabase
     lateinit var repository: BrakOffRepository
     lateinit var preferencesManager: PreferencesManager
+    lateinit var updateRepository: UpdateRepository
+    lateinit var updateManager: UpdateManager
 
     override fun onCreate() {
         super.onCreate()
@@ -65,8 +71,24 @@ class BrakOffApp : Application() {
             preferencesManager,
             applicationContext
         )
+
+        // Separate Client for GitHub API to bypass BaseUrlInterceptor
+        val gitHubClient = OkHttpClient.Builder()
+            .addInterceptor(logging)
+            .build()
+
+        val gitHubRetrofit = Retrofit.Builder()
+            .baseUrl("https://api.github.com/")
+            .addConverterFactory(GsonConverterFactory.create())
+            .client(gitHubClient)
+            .build()
+
+        val gitHubApiService = gitHubRetrofit.create(GitHubApiService::class.java)
+
+        updateRepository = UpdateRepository(gitHubApiService)
+        updateManager = UpdateManager(applicationContext)
         
-        @OptIn(kotlinx.coroutines.DelicateCoroutinesApi::class)
+        @OptIn(DelicateCoroutinesApi::class)
         GlobalScope.launch {
             preferencesManager.getOrCreateDeviceId()
         }

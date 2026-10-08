@@ -21,6 +21,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import com.wodrol.brakoff.ui.viewmodel.MainViewModel
+import com.wodrol.brakoff.BuildConfig
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -435,6 +436,92 @@ fun SettingsScreen(
                                     Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
                                     Spacer(Modifier.width(4.dp))
                                     Text("Synchronizuj")
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(24.dp))
+                
+                Text("Aktualizacja aplikacji", style = MaterialTheme.typography.titleMedium)
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                val updateState by viewModel.updateState.collectAsState()
+                
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant
+                    )
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text(
+                            text = "Zainstalowana wersja: ${BuildConfig.VERSION_NAME} (kod: ${BuildConfig.VERSION_CODE})",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        when (val state = updateState) {
+                            is com.wodrol.brakoff.ui.viewmodel.UpdateState.Idle, is com.wodrol.brakoff.ui.viewmodel.UpdateState.NoUpdate -> {
+                                if (state is com.wodrol.brakoff.ui.viewmodel.UpdateState.NoUpdate) {
+                                    Text("Posiadasz najnowszą wersję aplikacji.", style = MaterialTheme.typography.bodySmall, color = Color(0xFF2E7D32))
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                }
+                                Button(
+                                    onClick = { viewModel.checkForUpdates(manual = true) },
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
+                                    Spacer(Modifier.width(8.dp))
+                                    Text("Sprawdź aktualizacje")
+                                }
+                            }
+                            is com.wodrol.brakoff.ui.viewmodel.UpdateState.Checking -> {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                                    Spacer(Modifier.width(12.dp))
+                                    Text("Sprawdzanie aktualizacji...", style = MaterialTheme.typography.bodyMedium)
+                                }
+                            }
+                            is com.wodrol.brakoff.ui.viewmodel.UpdateState.UpdateAvailable -> {
+                                Text("Dostępna nowa wersja: ${state.manifest.versionName}", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+                                if (!state.manifest.releaseNotes.isNullOrBlank()) {
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(state.manifest.releaseNotes, style = MaterialTheme.typography.bodySmall)
+                                }
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Button(
+                                    onClick = { viewModel.downloadAndInstallUpdate() },
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text("Pobierz i zainstaluj")
+                                }
+                            }
+                            is com.wodrol.brakoff.ui.viewmodel.UpdateState.Downloading -> {
+                                val progress = state.progress
+                                Text("Pobieranie aktualizacji... ${(progress * 100).toInt()}%", style = MaterialTheme.typography.bodyMedium)
+                                Spacer(modifier = Modifier.height(8.dp))
+                                LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth())
+                            }
+                            is com.wodrol.brakoff.ui.viewmodel.UpdateState.ReadyToInstall -> {
+                                Text("Pobieranie zakończone. Uruchamianie instalatora...", style = MaterialTheme.typography.bodyMedium, color = Color(0xFF2E7D32))
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Button(
+                                    onClick = { viewModel.installApk() },
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text("Instaluj ponownie")
+                                }
+                            }
+                            is com.wodrol.brakoff.ui.viewmodel.UpdateState.Error -> {
+                                Text("Błąd: ${state.message}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Button(
+                                    onClick = { viewModel.checkForUpdates(manual = true) },
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text("Spróbuj ponownie")
                                 }
                             }
                         }
